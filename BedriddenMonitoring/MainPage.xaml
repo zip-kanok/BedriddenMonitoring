@@ -208,8 +208,12 @@
                 </Grid>
                 <Grid x:Name="SettingGrid" Grid.ColumnSpan="2" Grid.Column="1" Grid.Row="1">
                     <Grid Background="#7F000000">
-                        <StackPanel x:Name="UserStack" HorizontalAlignment="Left" Height="368" Margin="84,46,0,0" VerticalAlignment="Top" Width="382">
-                            <CheckBox Content="Select All" VerticalAlignment="Center" Margin="0" Indeterminate="" FontSize="18"></CheckBox>
+                        <StackPanel x:Name="UserStack" HorizontalAlignment="Left" Height="368" Margin="90,142,0,0" VerticalAlignment="Top" Width="382">
+                            <CheckBox x:Name="SACheck" Content="  Select all" VerticalAlignment="Center" Margin="0" Indeterminate="SACheck_Indeterminate" FontSize="18" IsThreeState="True" Checked="SACheck_Checked" Unchecked="SACheck_Unchecked" ></CheckBox>
+                        </StackPanel>
+                        <StackPanel HorizontalAlignment="Left" Height="78" Margin="90,59,0,0" VerticalAlignment="Top" Width="382">
+                            <RadioButton x:Name="radioButton" Content="  Periordic Send" VerticalAlignment="Stretch" FontSize="18" Margin="0,0,0,10"/>
+                            <RadioButton x:Name="radioButton1" Content="  Just send when status is red" VerticalAlignment="Stretch" FontSize="18"/>
                         </StackPanel>
 
                     </Grid>

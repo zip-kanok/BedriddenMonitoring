@@ -1,4 +1,5 @@
-﻿using Microsoft.Graph;
+﻿using BedriddenMonitoring.Model;
+using Microsoft.Graph;
 using Microsoft.OneDrive.Sdk;
 using Microsoft.OneDrive.Sdk.Authentication;
 using Newtonsoft.Json;
@@ -115,7 +116,8 @@ namespace BedriddenMonitoring
         public string CurrentGrid { get; set; }
 
         //User can config period. Unit is second
-        int PeriodTime = 5;
+        int PeriodTime = 20;
+        bool IsPeriodicSend;
 
         //Variable to login to OneDrive
         MsaAuthenticationProvider MyAuthProvider;
@@ -125,6 +127,8 @@ namespace BedriddenMonitoring
         string[] scope = { "wl.signin", "onedrive.readwrite", "wl.offline_access" };
 
         Dictionary<string, string> Udata = new Dictionary<string, string>();
+        List<string> Selected_User = new List<string>();
+        string key_fcm = "=AAAAxGsMpEY:APA91bHGQS2c5tIXwn3bP4c-krRvkA1UbKBdWbg68D54LhDh0x-keAZqvTBNGJz81fB4tQnnHHdCAx8oZolOcmykVXXGTlx8rLgPqlBEk3cDKwnHBX4-jJ8bC8hTviTn3pA58mIwIejWglCTMInhGe1-BkR2ZnyFMw";
 
         DispatcherTimer MainTimer;
         DispatcherTimer ClockTimer;
@@ -234,7 +238,8 @@ namespace BedriddenMonitoring
 
             CreateFolderOutput();
             SignIn();
-            Get_UserData();
+            IsPeriodicSend = true;
+
             
         }
         
@@ -355,9 +360,13 @@ namespace BedriddenMonitoring
             {
                 // open the sensor
                 this.kinectSensor.Open();
+                Task GetUserTask = Get_UserData();
                 LoadingGrid.Visibility = Visibility.Collapsed;
                 SigninButt.IsEnabled = false;
                 listview.SelectedIndex = 0;
+                await GetUserTask;
+                //SACheck.IsChecked = true;
+
                 bool IsExist = await CheckFolderInOnedrive();
                 if (!IsExist)
                 {
@@ -550,7 +559,7 @@ namespace BedriddenMonitoring
         private async void ShowOutput(object sender, object e)
         {
             bool printLog = true;
-            Task T = SaveWriteableBitmapToFile();
+            Task SavetoFileTask = SaveWriteableBitmapToFile();
 
             if (IsPeople)
             {
@@ -605,7 +614,8 @@ namespace BedriddenMonitoring
 
             try
             {
-                await SaveWriteableBitmapToFile();
+                await SavetoFileTask;
+                if(IsPeriodicSend) await CreateNoti();
             }
             catch (Exception excep)
             {
@@ -717,7 +727,7 @@ namespace BedriddenMonitoring
             return link;
         }
 
-        private async void Get_UserData()
+        private async Task Get_UserData()
         {
 
             using (var client = new HttpClient())
@@ -726,21 +736,139 @@ namespace BedriddenMonitoring
                 var UserData_response = await UserData.Content.ReadAsStringAsync();
                 var UserJson = JObject.Parse(UserData_response);
                 var temp = UserJson.Values();
-
+                int count = 0;
                 foreach (var i in temp)
                 {
                     var email = ((JProperty)((JContainer)i).First).Value.ToString();
                     var token = ((JProperty)((JContainer)i).Last).Value.ToString();
-                    Udata.Add(email,token);
-                    var CItem = new CheckBox();
-                    CItem.Content = email;
-                    UserStack.Children.Add(CItem);
-
+                    if (token.ToString().Trim() != "")
+                    {
+                        string name = "user" + count;
+                        Udata.Add(email, token);
+                        var CItem = new CheckBox();
+                        CItem.Name = name;
+                        CItem.Checked += CItem_Checked;
+                        CItem.Unchecked += CItem_Unchecked;
+                        CItem.Content = "  " + email;
+                        CItem.FontSize = 18;
+                        UserStack.Children.Add(CItem);
+                        
+                    }
+                    count++;
                 }
                 UserStack.UpdateLayout();
+                
             }
         }
 
+        private async Task CreateNoti()
+        {
+            if (Selected_User.Count != 0)
+            {
+                using (var client = new HttpClient())
+                {
+                    
+                    client.DefaultRequestHeaders.Authorization =
+                        new System.Net.Http.Headers.AuthenticationHeaderValue("key", key_fcm);
+                    foreach (var i in Selected_User)
+                    {
+                        var temp_data = new FCM_Data()
+                        {
+                            to = i,
 
+                            data = new Data()
+                            {
+                                type = Type,
+                                time = DateTime.Now.ToString()
+                            }
+
+                        };
+                        var Json = JsonConvert.SerializeObject(temp_data);
+                        var content = new StringContent(Json.ToString(), Encoding.UTF8, "application/json");
+                        var response = await client.PostAsync("https://fcm.googleapis.com/fcm/send", content);
+
+                        var responseString = await response.Content.ReadAsStringAsync();
+
+                    }
+                }
+            }
+           
+        }
+
+        private void CItem_Unchecked(object sender, RoutedEventArgs e)
+        {
+            CheckBox lbi = sender as CheckBox;
+            string email_key = lbi.Content.ToString().Trim();
+            if (Udata.ContainsKey(email_key))
+            {
+                Selected_User.Remove(Udata[email_key]);
+            }
+        }
+
+        private void CItem_Checked(object sender, RoutedEventArgs e)
+        {
+            CheckBox lbi = sender as CheckBox;
+            string email_key = lbi.Content.ToString().Trim();
+            if (Udata.ContainsKey(email_key))
+            {
+                Selected_User.Add(Udata[email_key]);
+            }
+        }
+
+        private void SACheck_Checked(object sender, RoutedEventArgs e)
+        {
+            foreach (var i in UserStack.Children.OfType<CheckBox>())
+            {
+                string name = i.Content.ToString().Trim().ToLower();
+                if (name != "select all")
+                {
+                    i.IsChecked = true;
+                }
+            }
+        }
+
+        private void SACheck_Unchecked(object sender, RoutedEventArgs e)
+        {
+            foreach (var i in UserStack.Children.OfType<CheckBox>())
+            {
+                if (i.Content.ToString().Trim().ToLower() != "selectall")
+                {
+                    i.IsChecked = false;
+                }
+            }
+            Selected_User.Clear();
+        }
+
+        private void SACheck_Indeterminate(object sender, RoutedEventArgs e)
+        {
+            // If the SelectAll box is checked (all options are selected), 
+            // clicking the box will change it to its indeterminate state.
+            // Instead, we want to uncheck all the boxes,
+            // so we do this programatically. The indeterminate state should
+            // only be set programatically, not by the user.
+
+            if (IsAll_Check())
+            {
+                // This will cause SelectAll_Unchecked to be executed, so
+                // we don't need to uncheck the other boxes here.
+                SACheck.IsChecked = false;
+            }
+        }
+
+        private bool IsAll_Check()
+        {
+            foreach (var i in UserStack.Children.OfType<CheckBox>())
+            {
+                if (i.Content.ToString().Trim().ToLower() != "selectall")
+                {
+                    if(i.IsChecked == false)
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
     }
 }
