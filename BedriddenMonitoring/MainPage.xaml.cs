@@ -41,6 +41,11 @@ namespace BedriddenMonitoring
     /// </summary>
     public sealed partial class MainPage : Page, INotifyPropertyChanged
     {
+        public enum StatusType{
+            red,
+            green,
+            orange
+        }
         
         interface IBufferByteAccess
         {
@@ -101,7 +106,7 @@ namespace BedriddenMonitoring
         private BodiesManager bodiesManager = null;
 
         //BodyMask Frames
-        private DepthSpacePoint[] colorMappedToDepthPoints = null;
+        //private DepthSpacePoint[] colorMappedToDepthPoints = null;
 
         //Body Joints are drawn here
         private Canvas drawingCanvas;
@@ -116,8 +121,17 @@ namespace BedriddenMonitoring
         public string CurrentGrid { get; set; }
 
         //User can config period. Unit is second
-        int PeriodTime = 20;
+        TimeSpan PeriodTime;
+        int second;
+        int minute;
+        int hour;
+
+        bool IsSend;
         bool IsPeriodicSend;
+        bool IsGreenEnable;
+        bool IsRedEnable;
+        bool IsOrangeEnable;
+        bool IsFirstTime;
 
         //Variable to login to OneDrive
         MsaAuthenticationProvider MyAuthProvider;
@@ -227,7 +241,6 @@ namespace BedriddenMonitoring
 
             //MainTimer for handle periodic task
             MainTimer = new DispatcherTimer();
-            MainTimer.Interval = new TimeSpan(0, 0, PeriodTime);
             MainTimer.Tick += ShowOutput;
 
             //set all grid disable
@@ -238,9 +251,27 @@ namespace BedriddenMonitoring
 
             CreateFolderOutput();
             SignIn();
-            IsPeriodicSend = true;
+            IsFirstTime = true;
+            IsSend = true;
+            IsGreenEnable = false;
+            IsRedEnable = false;
+            IsOrangeEnable = false;
 
-            
+            for(var i=0;i<60;i++)
+            {
+                SecondCB.Items.Add(i);
+                MinuteCB.Items.Add(i);
+            }
+
+            SecondCB.UpdateLayout();
+            MinuteCB.UpdateLayout();
+
+            for(var i = 0; i < 24; i++)
+            {
+                HourCB.Items.Add(i);
+            }
+            HourCB.UpdateLayout();
+
         }
         
         private void ClockTimer_Tick(object sender, object e)
@@ -256,10 +287,12 @@ namespace BedriddenMonitoring
             if (this.kinectSensor.IsAvailable)
             {
                 this.StatusText = "  Running";
+                /*
                 if (this.kinectSensor.IsOpen)
                 {
                     MainTimer.Start();
                 }
+                */
             }
             else
             {
@@ -273,7 +306,11 @@ namespace BedriddenMonitoring
                 MultiSourceFrameReader sender,
                 MultiSourceFrameArrivedEventArgs e)
         {
-            
+            if (IsFirstTime)
+            {
+                IsFirstTime = false;
+                MainTimer.Start();
+            }
             MultiSourceFrame multiSourceFrame = e.FrameReference.AcquireFrame();
 
             // If the Frame has expired by the time we process this event, return.
@@ -354,37 +391,47 @@ namespace BedriddenMonitoring
 
         private async void SignIn()
         {
-
-            bool IsAuthen = await Initialize_User();
-            if (IsAuthen)
+            try
             {
-                // open the sensor
-                this.kinectSensor.Open();
-                Task GetUserTask = Get_UserData();
-                LoadingGrid.Visibility = Visibility.Collapsed;
-                SigninButt.IsEnabled = false;
-                listview.SelectedIndex = 0;
-                await GetUserTask;
-                //SACheck.IsChecked = true;
-
-                bool IsExist = await CheckFolderInOnedrive();
-                if (!IsExist)
+                bool IsAuthen = await Initialize_User();
+                if (IsAuthen)
                 {
-                    var folderToCreate = new Item { Folder = new Folder() };
-                    var createdFolder = await oneDriveClient
-                              .Drive
-                              .Root
-                              .ItemWithPath("Kinect_Output")
-                              .Request()
-                              .CreateAsync(folderToCreate);
+                    // open the sensor
+                    this.kinectSensor.Open();
+                    Task GetUserTask = Get_UserData();
+                    LoadingGrid.Visibility = Visibility.Collapsed;
+                    SigninButt.IsEnabled = false;
+                    listview.SelectedIndex = 0;
+                    await GetUserTask;
+                    //SACheck.IsChecked = true;
+                    PeriodicSendButt.IsChecked = true;
+                    SecondCB.SelectedItem = 30;
+                    MinuteCB.SelectedItem = 0;
+                    HourCB.SelectedItem = 0;
+
+                    bool IsExist = await CheckFolderInOnedrive();
+                    if (!IsExist)
+                    {
+                        var folderToCreate = new Item { Folder = new Folder() };
+                        var createdFolder = await oneDriveClient
+                                  .Drive
+                                  .Root
+                                  .ItemWithPath("Kinect_Output")
+                                  .Request()
+                                  .CreateAsync(folderToCreate);
+                    }
+                    //MainTimer.Start();
+
                 }
-                //MainTimer.Start();
-                
+                else
+                {
+                    ProgressRing.Visibility = Visibility.Collapsed;
+                    ReSigninButt.Visibility = Visibility.Visible;
+                }
             }
-            else
+            catch (Exception ex)
             {
-                ProgressRing.Visibility = Visibility.Collapsed;
-                ReSigninButt.Visibility = Visibility.Visible;
+                throw ex;
             }
         }
 
@@ -483,6 +530,7 @@ namespace BedriddenMonitoring
 
         private async void SignoutButt_Click(object sender, RoutedEventArgs e)
         {
+            MainTimer.Stop();
             LoadingGrid.Visibility = Visibility.Visible;
             ProgressRing.Visibility = Visibility.Visible;
             try
@@ -578,7 +626,8 @@ namespace BedriddenMonitoring
                                     + "Patient is lie on bed " + "\r\n",
                             Foreground = new SolidColorBrush(Colors.Green)
                         });
-
+                        if (IsSend&&!IsPeriodicSend && IsGreenEnable) await CreateNoti();
+                        
                     }
 
                     else
@@ -590,6 +639,8 @@ namespace BedriddenMonitoring
                                     + "Patient does not lie on bed " + "\r\n",
                             Foreground = new SolidColorBrush(Colors.Orange)
                         });
+                        if (IsSend&&!IsPeriodicSend && IsOrangeEnable) await CreateNoti();
+
                     }
                 }
                 else
@@ -600,22 +651,26 @@ namespace BedriddenMonitoring
                         Text = "Z head " + "Patient does not lie on bed " + "\r\n",
                         Foreground = new SolidColorBrush(Colors.Orange)
                     });
+                    if (IsSend&&!IsPeriodicSend && IsOrangeEnable) await CreateNoti();
+
                 }
             }
             else
             {
                 Type = "red";
+                
                 OutputTBL.Inlines.Insert(0, new Run()
                 {
                     Text = "[" + DateTime.Now.ToString() + "]\r\nNot Detected!\r\n",
                     Foreground = new SolidColorBrush(Colors.Red)
                 });
+                if (IsSend&&!IsPeriodicSend&&IsRedEnable) await CreateNoti();
             }
 
             try
             {
                 await SavetoFileTask;
-                if(IsPeriodicSend) await CreateNoti();
+                if(IsSend && IsPeriodicSend) await CreateNoti();
             }
             catch (Exception excep)
             {
@@ -729,35 +784,48 @@ namespace BedriddenMonitoring
 
         private async Task Get_UserData()
         {
-
-            using (var client = new HttpClient())
+            try
             {
-                var UserData = await client.GetAsync("https://bedriddenpatient.firebaseio.com/UserAuthen.json");
-                var UserData_response = await UserData.Content.ReadAsStringAsync();
-                var UserJson = JObject.Parse(UserData_response);
-                var temp = UserJson.Values();
-                int count = 0;
-                foreach (var i in temp)
+                using (var client = new HttpClient())
                 {
-                    var email = ((JProperty)((JContainer)i).First).Value.ToString();
-                    var token = ((JProperty)((JContainer)i).Last).Value.ToString();
-                    if (token.ToString().Trim() != "")
+                    var UserData = await client.GetAsync("https://bedriddenpatient.firebaseio.com/UserAuthen.json");
+                    var UserData_response = await UserData.Content.ReadAsStringAsync();
+                    var UserJson = JObject.Parse(UserData_response);
+                    var temp = UserJson.Values();
+                    int count = 0;
+                    foreach (var i in temp)
                     {
-                        string name = "user" + count;
-                        Udata.Add(email, token);
-                        var CItem = new CheckBox();
-                        CItem.Name = name;
-                        CItem.Checked += CItem_Checked;
-                        CItem.Unchecked += CItem_Unchecked;
-                        CItem.Content = "  " + email;
-                        CItem.FontSize = 18;
-                        UserStack.Children.Add(CItem);
-                        
+                        var email = ((JProperty)((JContainer)i).First).Value.ToString();
+                        var token = ((JProperty)((JContainer)i).Last).Value.ToString();
+                        if (token.ToString().Trim() != "")
+                        {
+                            string name = "user" + count;
+                            Udata.Add(email, token);
+                            var CItem = new CheckBox();
+                            CItem.Name = name;
+                            CItem.Checked += CItem_Checked;
+                            CItem.Unchecked += CItem_Unchecked;
+                            CItem.Content = email;
+                            CItem.FontSize = 18;
+                            CItem.Padding = new Thickness(10, 0, 0, 0);
+                            CItem.Margin = new Thickness(60, 0, 0, 0);
+                            UserStack.Children.Add(CItem);
+
+                        }
+                        count++;
                     }
-                    count++;
+                    UserStack.UpdateLayout();
+
                 }
-                UserStack.UpdateLayout();
-                
+            }
+            catch(Exception ex)
+            {
+                OutputTBL.Inlines.Insert(0, new Run()
+                {
+                    Text = ex.Message + "\r\n",
+                    Foreground = new SolidColorBrush(Colors.DarkRed)
+                });
+                OutputTBL.UpdateLayout();
             }
         }
 
@@ -798,7 +866,7 @@ namespace BedriddenMonitoring
         private void CItem_Unchecked(object sender, RoutedEventArgs e)
         {
             CheckBox lbi = sender as CheckBox;
-            string email_key = lbi.Content.ToString().Trim();
+            string email_key = lbi.Content.ToString();
             if (Udata.ContainsKey(email_key))
             {
                 Selected_User.Remove(Udata[email_key]);
@@ -808,7 +876,7 @@ namespace BedriddenMonitoring
         private void CItem_Checked(object sender, RoutedEventArgs e)
         {
             CheckBox lbi = sender as CheckBox;
-            string email_key = lbi.Content.ToString().Trim();
+            string email_key = lbi.Content.ToString();
             if (Udata.ContainsKey(email_key))
             {
                 Selected_User.Add(Udata[email_key]);
@@ -819,7 +887,7 @@ namespace BedriddenMonitoring
         {
             foreach (var i in UserStack.Children.OfType<CheckBox>())
             {
-                string name = i.Content.ToString().Trim().ToLower();
+                string name = i.Content.ToString().ToLower();
                 if (name != "select all")
                 {
                     i.IsChecked = true;
@@ -831,7 +899,7 @@ namespace BedriddenMonitoring
         {
             foreach (var i in UserStack.Children.OfType<CheckBox>())
             {
-                if (i.Content.ToString().Trim().ToLower() != "selectall")
+                if (i.Content.ToString().ToLower() != "select all")
                 {
                     i.IsChecked = false;
                 }
@@ -859,7 +927,7 @@ namespace BedriddenMonitoring
         {
             foreach (var i in UserStack.Children.OfType<CheckBox>())
             {
-                if (i.Content.ToString().Trim().ToLower() != "selectall")
+                if (i.Content.ToString().ToLower() != "selectall")
                 {
                     if(i.IsChecked == false)
                     {
@@ -869,6 +937,81 @@ namespace BedriddenMonitoring
             }
 
             return true;
+        }
+
+        private void PeriodicSendButt_Checked(object sender, RoutedEventArgs e)
+        {
+            IsPeriodicSend = true;
+            StatusCB.IsEnabled = false;
+            foreach (var i in UserStack.Children.OfType<CheckBox>())
+            {
+                i.IsEnabled = true;
+            }
+
+        }
+
+        private void StatusSendButt_Checked(object sender, RoutedEventArgs e)
+        {
+            IsPeriodicSend = false;
+            HourCB.IsEnabled = false;
+            foreach (var i in UserStack.Children.OfType<CheckBox>())
+            {
+                i.IsEnabled = true;
+            }
+        }
+
+        private void StatusCB_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            ComboBoxItem CI = sender as ComboBoxItem;
+            if(CI.Content.ToString() == "red")
+            {
+                IsRedEnable = true;
+                IsOrangeEnable = false;
+                IsGreenEnable = false;
+            }
+            else if(CI.Content.ToString() == "orange")
+            {
+                IsRedEnable = false;
+                IsOrangeEnable = true;
+                IsGreenEnable = false;
+            }
+            else if(CI.Content.ToString() == "green")
+            {
+                IsRedEnable = false;
+                IsOrangeEnable = false;
+                IsGreenEnable = true;
+            }
+        }
+
+        private void SecondCB_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            second = (int)((sender as ComboBox).SelectedValue);
+            PeriodTime = new TimeSpan(hour,minute,second);
+            MainTimer.Interval = PeriodTime;
+        }
+
+        private void MinuteCB_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            minute = (int)((sender as ComboBox).SelectedValue);
+            PeriodTime = new TimeSpan(hour, minute, second);
+            MainTimer.Interval = PeriodTime;
+        }
+
+        private void HourCB_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            hour = (int)((sender as ComboBox).SelectedValue);
+            PeriodTime = new TimeSpan(hour, minute, second);
+            MainTimer.Interval = PeriodTime;
+        }
+
+        private void radioButton_Checked(object sender, RoutedEventArgs e)
+        {
+            IsSend = false;
+            HourCB.IsEnabled = false;
+            foreach(var i in UserStack.Children.OfType<CheckBox>())
+            {
+                i.IsEnabled = false;
+            }
         }
     }
 }
