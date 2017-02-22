@@ -257,19 +257,12 @@ namespace BedriddenMonitoring
             IsRedEnable = false;
             IsOrangeEnable = false;
 
-            for(var i=0;i<60;i++)
-            {
-                SecondCB.Items.Add(i);
-                MinuteCB.Items.Add(i);
-            }
+            for(var i=1;i<60;i++) SecondCB.Items.Add(i);
+            for(var i=0;i<60;i++) MinuteCB.Items.Add(i);
+            for(var i=0;i<24;i++) HourCB.Items.Add(i);
 
             SecondCB.UpdateLayout();
             MinuteCB.UpdateLayout();
-
-            for(var i = 0; i < 24; i++)
-            {
-                HourCB.Items.Add(i);
-            }
             HourCB.UpdateLayout();
 
         }
@@ -1007,7 +1000,6 @@ namespace BedriddenMonitoring
         private void radioButton_Checked(object sender, RoutedEventArgs e)
         {
             IsSend = false;
-            HourCB.IsEnabled = false;
             foreach(var i in UserStack.Children.OfType<CheckBox>())
             {
                 i.IsEnabled = false;
