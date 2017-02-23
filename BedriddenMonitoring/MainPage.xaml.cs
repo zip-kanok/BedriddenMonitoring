@@ -118,6 +118,7 @@ namespace BedriddenMonitoring
         StorageFile File = null;
         Body bodyGetDepth = null;
         string Type;
+
         public string CurrentGrid { get; set; }
 
         //User can config period. Unit is second
@@ -379,6 +380,8 @@ namespace BedriddenMonitoring
                 CheckPeople(bodies);
             }
 
+
+
         }
 
 
@@ -465,6 +468,8 @@ namespace BedriddenMonitoring
                     IsPeople = true;
                 }
             }
+
+
         }
 
         private async void CreateFolderOutput()
@@ -946,7 +951,7 @@ namespace BedriddenMonitoring
         private void StatusSendButt_Checked(object sender, RoutedEventArgs e)
         {
             IsPeriodicSend = false;
-            HourCB.IsEnabled = false;
+            StatusCB.IsEnabled = true;
             foreach (var i in UserStack.Children.OfType<CheckBox>())
             {
                 i.IsEnabled = true;
@@ -955,25 +960,27 @@ namespace BedriddenMonitoring
 
         private void StatusCB_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            ComboBoxItem CI = sender as ComboBoxItem;
-            if(CI.Content.ToString() == "red")
+            var selected = ((ComboBoxItem)((sender as ComboBox).SelectedItem)).Content;            
+           
+            if(selected.ToString() == "red")
             {
                 IsRedEnable = true;
                 IsOrangeEnable = false;
                 IsGreenEnable = false;
             }
-            else if(CI.Content.ToString() == "orange")
+            else if(selected.ToString() == "orange")
             {
                 IsRedEnable = false;
                 IsOrangeEnable = true;
                 IsGreenEnable = false;
             }
-            else if(CI.Content.ToString() == "green")
+            else if(selected.ToString() == "green")
             {
                 IsRedEnable = false;
                 IsOrangeEnable = false;
                 IsGreenEnable = true;
             }
+            
         }
 
         private void SecondCB_SelectionChanged(object sender, SelectionChangedEventArgs e)

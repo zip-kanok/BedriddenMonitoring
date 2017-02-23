@@ -333,9 +333,9 @@
                                         </StackPanel>
                                         <StackPanel Orientation="Vertical" Margin="26,0,0,0">
                                             <ComboBox x:Name="StatusCB" SelectionChanged="StatusCB_SelectionChanged" Margin="0,110,0,0">
-                                                <ComboBoxItem Content="red"/>
-                                                <ComboBoxItem Content="orange"/>
-                                                <ComboBoxItem Content="green"/>
+                                                <ComboBoxItem>red</ComboBoxItem>
+                                                <ComboBoxItem>orange</ComboBoxItem>
+                                                <ComboBoxItem>green</ComboBoxItem>
                                             </ComboBox>
 
                                         </StackPanel>
