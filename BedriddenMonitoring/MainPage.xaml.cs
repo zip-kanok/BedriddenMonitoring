@@ -43,8 +43,9 @@ namespace BedriddenMonitoring
     {
         public enum StatusType{
             red,
+            orange,
+            blue,
             green,
-            orange
         }
         
         interface IBufferByteAccess
@@ -119,6 +120,10 @@ namespace BedriddenMonitoring
         Body bodyGetDepth = null;
         string Type;
 
+        StatusType CurrentPosture;
+        StatusType NewPosture;
+        StatusType NotiStatus;
+
         public string CurrentGrid { get; set; }
 
         //User can config period. Unit is second
@@ -132,6 +137,7 @@ namespace BedriddenMonitoring
         bool IsGreenEnable;
         bool IsRedEnable;
         bool IsOrangeEnable;
+        bool IsBlueEnable;
         bool IsFirstTime;
 
         //Variable to login to OneDrive
@@ -144,9 +150,10 @@ namespace BedriddenMonitoring
         Dictionary<string, string> Udata = new Dictionary<string, string>();
         List<string> Selected_User = new List<string>();
         string key_fcm = "=AAAAxGsMpEY:APA91bHGQS2c5tIXwn3bP4c-krRvkA1UbKBdWbg68D54LhDh0x-keAZqvTBNGJz81fB4tQnnHHdCAx8oZolOcmykVXXGTlx8rLgPqlBEk3cDKwnHBX4-jJ8bC8hTviTn3pA58mIwIejWglCTMInhGe1-BkR2ZnyFMw";
-
+        //Data2Database data;
         DispatcherTimer MainTimer;
         DispatcherTimer ClockTimer;
+        DispatcherTimer UserTimer;
 
         public event PropertyChangedEventHandler PropertyChanged;
         
@@ -242,7 +249,12 @@ namespace BedriddenMonitoring
 
             //MainTimer for handle periodic task
             MainTimer = new DispatcherTimer();
-            MainTimer.Tick += ShowOutput;
+            MainTimer.Interval = new TimeSpan(0, 0, 5);
+            MainTimer.Tick += CheckStatus;
+
+            //UserTimer for allow user can change interval for checking same posture
+            UserTimer = new DispatcherTimer();
+            UserTimer.Tick += ChangeState;
 
             //set all grid disable
             MonitorGrid.Visibility = Visibility.Collapsed;
@@ -265,9 +277,75 @@ namespace BedriddenMonitoring
             SecondCB.UpdateLayout();
             MinuteCB.UpdateLayout();
             HourCB.UpdateLayout();
+        }
+
+        private async void ChangeState(object sender, object e)
+        {
+            //Task NotiTask = null;
+            //Task NoitiTask = CreateNoti(CurrentPosture);
+            Task SaveFile = SaveWriteableBitmapToFile(CurrentPosture);
+            ShowOutputLogChange(CurrentPosture);
+            if (IsSend && IsPeriodicSend) await CreateNoti(CurrentPosture);
+            else if(IsSend && !IsPeriodicSend)
+            {
+                /*
+                switch (CurrentPosture)
+                {
+                    if(CurrentPosture)
+                    case StatusType.blue:
+                        if (IsBlueEnable) NotiTask = CreateNoti(StatusType.blue);
+                        break;
+
+                    case StatusType.red:
+                        if (IsRedEnable) NotiTask = CreateNoti(StatusType.red);
+                        break;
+                    case StatusType.orange:
+                        if (IsOrangeEnable) NotiTask = CreateNoti(StatusType.orange);
+                        break;
+                    case StatusType.green:
+                        if (IsGreenEnable) NotiTask = CreateNoti(StatusType.green);
+                        break;
+                    default:
+                        break;
+                }*/
+                
+                
+                
+                switch (NotiStatus)
+                {
+                    case StatusType.blue:
+                        if (CurrentPosture==NotiStatus) await CreateNoti(StatusType.blue);
+                        break;
+                    case StatusType.red:
+                        if (CurrentPosture==NotiStatus) await CreateNoti(StatusType.red);
+                        break;
+                    case StatusType.orange:
+                        if (CurrentPosture==NotiStatus) await CreateNoti(StatusType.orange);
+                        break;
+                    case StatusType.green:
+                        if (CurrentPosture==NotiStatus) await CreateNoti(StatusType.green);
+                        break;
+                    default:
+                        break;
+                }
+            }
+            try
+            {
+                await SaveFile;
+                //if(IsSend&&IsPeriodicSend) await NotiTask;
+            }
+            catch(Exception ex)
+            {
+                string ErrorMessage = ex.Message + "  ::  " + ex.Data;
+                var dialog = new MessageDialog(ErrorMessage);
+                await dialog.ShowAsync();
+            }
+
+            
+            
 
         }
-        
+
         private void ClockTimer_Tick(object sender, object e)
         {
             time.Text = DateTime.Now.ToString("HH : mm : ss");
@@ -387,25 +465,24 @@ namespace BedriddenMonitoring
 
         private async void SignIn()
         {
+            bool IsAuthen = false;
+            bool IsExist = false;
+
             try
             {
-                bool IsAuthen = await Initialize_User();
+                IsAuthen = await Initialize_User();
+                IsExist = await CheckFolderInOnedrive();
+            }
+            catch (Exception ex)
+            {
+                string ErrorMessage = ex.Message + "  ::  " + ex.Data;
+                var dialog = new MessageDialog(ErrorMessage);
+                await dialog.ShowAsync();
+            }
+            finally
+            {
                 if (IsAuthen)
                 {
-                    // open the sensor
-                    this.kinectSensor.Open();
-                    Task GetUserTask = Get_UserData();
-                    LoadingGrid.Visibility = Visibility.Collapsed;
-                    SigninButt.IsEnabled = false;
-                    listview.SelectedIndex = 0;
-                    await GetUserTask;
-                    //SACheck.IsChecked = true;
-                    PeriodicSendButt.IsChecked = true;
-                    SecondCB.SelectedItem = 30;
-                    MinuteCB.SelectedItem = 0;
-                    HourCB.SelectedItem = 0;
-
-                    bool IsExist = await CheckFolderInOnedrive();
                     if (!IsExist)
                     {
                         var folderToCreate = new Item { Folder = new Folder() };
@@ -416,6 +493,20 @@ namespace BedriddenMonitoring
                                   .Request()
                                   .CreateAsync(folderToCreate);
                     }
+
+                    // open the sensor
+                    this.kinectSensor.Open();
+                    Task GetUserTask = Get_UserData();
+                    LoadingGrid.Visibility = Visibility.Collapsed;
+                    SigninButt.IsEnabled = false;
+                    listview.SelectedIndex = 0;
+                    await GetUserTask;
+                    //SACheck.IsChecked = true;
+                    PeriodicSendButt.IsChecked = true;
+                    SecondCB.SelectedItem = 20;
+                    MinuteCB.SelectedItem = 0;
+                    HourCB.SelectedItem = 0;
+                    
                     //MainTimer.Start();
 
                 }
@@ -424,10 +515,6 @@ namespace BedriddenMonitoring
                     ProgressRing.Visibility = Visibility.Collapsed;
                     ReSigninButt.Visibility = Visibility.Visible;
                 }
-            }
-            catch (Exception ex)
-            {
-                throw ex;
             }
         }
 
@@ -444,9 +531,10 @@ namespace BedriddenMonitoring
                 );
 
                 await MyAuthProvider.RestoreMostRecentFromCacheOrAuthenticateUserAsync();
-                //await MyAuthProvider.AuthenticateUserAsync();
-
+                //await MyAuthProvider.AuthenticateUserAsync(username);
+                
                 oneDriveClient = new OneDriveClient("https://api.onedrive.com/v1.0", MyAuthProvider);
+                
                 return MyAuthProvider.IsAuthenticated;
             }
             catch (ServiceException excep)
@@ -456,6 +544,14 @@ namespace BedriddenMonitoring
                 await dialog.ShowAsync();
                 return false;
             }
+            catch (Exception ex)
+            {
+                string ErrorMessage = ex.Message + "  ::  " + ex.Data;
+                var dialog = new MessageDialog(ErrorMessage);
+                await dialog.ShowAsync();
+                return false;
+            }
+            
         }
 
         private void CheckPeople(Body[] bodies)
@@ -467,11 +563,12 @@ namespace BedriddenMonitoring
                     bodyGetDepth = bodies[i];
                     IsPeople = true;
                 }
+                
             }
 
 
         }
-
+        
         private async void CreateFolderOutput()
         {
             Folder_Pic = await KnownFolders.PicturesLibrary.CreateFolderAsync("KinectOutput", CreationCollisionOption.OpenIfExists);
@@ -529,6 +626,7 @@ namespace BedriddenMonitoring
         private async void SignoutButt_Click(object sender, RoutedEventArgs e)
         {
             MainTimer.Stop();
+            UserTimer.Stop();
             LoadingGrid.Visibility = Visibility.Visible;
             ProgressRing.Visibility = Visibility.Visible;
             try
@@ -602,8 +700,10 @@ namespace BedriddenMonitoring
                 this.PropertyChanged(this, new PropertyChangedEventArgs("CurrentGrid"));
         }
  
-        private async void ShowOutput(object sender, object e)
+        private async void CheckStatus(object sender, object e)
         {
+
+            /*
             bool printLog = true;
             Task SavetoFileTask = SaveWriteableBitmapToFile();
 
@@ -681,10 +781,143 @@ namespace BedriddenMonitoring
 
             OutputTBL.UpdateLayout();
             CreateLogfile();
+            */
+            //Task T = SaveWriteableBitmapToFile();
+            if (!IsPeople)
+            {
+                NewPosture = StatusType.red;
+                //await SaveWriteableBitmapToFile();
+                //await CreateNoti(NewPosture);
+                //if (IsSend && !IsPeriodicSend && IsRedEnable) await CreateNoti(NewPosture);
+                //ShowOutputLog(StatusType.red);
+
+            }
+            else
+            {
+                Joint head = bodyGetDepth.Joints[JointType.Head];
+                double headZ = head.Position.Z;
+                string headZstring = headZ + "";
+
+                if (headZ >= 1.7)
+                {
+                    NewPosture = StatusType.green;
+                    //if (IsSend && !IsPeriodicSend && IsGreenEnable) await CreateNoti(NewPosture);
+                    //ShowOutputLog(StatusType.Normal);
+                }
+
+                else
+                {
+                    NewPosture = StatusType.orange;
+                    //if (IsSend && !IsPeriodicSend && IsOrangeEnable) await CreateNoti(NewPosture);
+                    //ShowOutputLog(StatusType.DoNotLayDown);
+                }
+
+            }
+
+            if (CurrentPosture != NewPosture)
+            {
+                CurrentPosture = NewPosture;
+                Task SaveTask = SaveWriteableBitmapToFile(CurrentPosture);
+                UserTimer.Stop();
+                UserTimer.Start();
+                ShowOutputLog(CurrentPosture);
+                await SaveTask;
+                await CreateNoti(CurrentPosture);
+            }
+            //await T;
         }
 
-        private async Task SaveWriteableBitmapToFile()
+        private void ShowOutputLog(StatusType Status)
         {
+            switch (Status)
+            {
+                case StatusType.red:
+                    OutputTBL.Inlines.Insert(0, new Run()
+                    {
+                        Text = "[" + DateTime.Now.ToString() + "]\r\nNot Detected!\r\n",
+                        Foreground = new SolidColorBrush(Colors.Red)
+                    });
+                    break;
+
+                case StatusType.orange:
+                    OutputTBL.Inlines.Insert(0, new Run()
+                    {
+                        Text = "[" + DateTime.Now.ToString() + "] Detected! \r\n "
+                                    + "Patient does not lie on bed " + "\r\n",
+                        Foreground = new SolidColorBrush(Colors.Orange)
+                    });
+                    break;
+
+                case StatusType.blue:
+                    OutputTBL.Inlines.Insert(0, new Run()
+                    {
+                        Text = "[" + DateTime.Now.ToString() + "] Detected! \r\n "
+                                    + "Patient Flip " + "\r\n",
+                        Foreground = new SolidColorBrush(Colors.Gold)
+                    });
+                    break;
+
+                case StatusType.green:
+                    OutputTBL.Inlines.Insert(0, new Run()
+                    {
+                        Text = "[" + DateTime.Now.ToString() + "] Detected! \r\n "
+                                    + "Patient lie on bed " + "\r\n",
+                        Foreground = new SolidColorBrush(Colors.Green)
+                    });
+                    break;
+
+            }
+            
+        }
+
+        private void ShowOutputLogChange(StatusType Status)
+        {
+            switch (Status)
+            {
+                case StatusType.red:
+                    OutputTBL.Inlines.Insert(0, new Run()
+                    {
+                        Text = "[" + DateTime.Now.ToString() + "]\r\nCHANGE!!  Not Detected!\r\n",
+                        Foreground = new SolidColorBrush(Colors.Red)
+                    });
+                    break;
+
+                case StatusType.orange:
+                    OutputTBL.Inlines.Insert(0, new Run()
+                    {
+                        Text = "[" + DateTime.Now.ToString() + "]\r\nCHANGE!!  Detected! \r\n "
+                                    + "Patient does not lie on bed " + "\r\n",
+                        Foreground = new SolidColorBrush(Colors.Orange)
+                    });
+                    break;
+
+                case StatusType.blue:
+                    OutputTBL.Inlines.Insert(0, new Run()
+                    {
+                        Text = "[" + DateTime.Now.ToString() + "]\r\nCHANGE!!  Detected! \r\n "
+                                    + "Patient Flip " + "\r\n",
+                        Foreground = new SolidColorBrush(Colors.Gold)
+                    });
+                    break;
+
+                case StatusType.green:
+                    OutputTBL.Inlines.Insert(0, new Run()
+                    {
+                        Text = "[" + DateTime.Now.ToString() + "]\r\nCHANGE!!  Detected! \r\n "
+                                    + "Patient lie on bed " + "\r\n",
+                        Foreground = new SolidColorBrush(Colors.Green)
+                    });
+                    break;
+                default :
+                    break;
+
+            }
+
+        }
+        private async Task SaveWriteableBitmapToFile(StatusType Type)
+        {
+            Data2Database data = new Data2Database();
+            data.type = Type.ToString();
             string filename = DateTime.Now.ToString("yyyyMMdd_hhmmss") + ".jpg";
             StorageFile savefile = await Folder_Pic.CreateFileAsync(filename, CreationCollisionOption.GenerateUniqueName);
             IRandomAccessStream stream = await savefile.OpenAsync(FileAccessMode.ReadWrite);
@@ -701,7 +934,7 @@ namespace BedriddenMonitoring
             {
                 stream.Dispose();
                 pixelStream.Dispose();
-                await Upload2_Cloud(filename);
+                await Upload2_Cloud(filename,data);
             },
             CancellationToken.None,
             TaskContinuationOptions.None,
@@ -709,7 +942,7 @@ namespace BedriddenMonitoring
 
         }
 
-        private async Task Upload2_Cloud(string filename)
+        private async Task Upload2_Cloud(string filename, Data2Database data)
         {
             StorageFile file = await StorageFile.GetFileFromPathAsync(@"C:\Users\kanokporn\Pictures\KinectOutput\" + filename);
             string Path_file = "Kinect_Output/" + filename;
@@ -726,9 +959,12 @@ namespace BedriddenMonitoring
                                          .Request()
                                          .PutAsync<Item>(temp_data);
                              
-                    var link = await Get_LinkItem(Path_file);
-                    UpdateDatabase(filename,link);
+                    var link = Get_LinkItem(Path_file);
+                    data.time = file.DateCreated.ToString("yyyy-MM-dd HH:mm:ss");
+                    data.url = await link;
+                    UpdateDatabase(data);
                 }
+                
             }
             catch (ServiceException ServiceEx)
             {
@@ -745,17 +981,23 @@ namespace BedriddenMonitoring
             
         }
 
-        private async void UpdateDatabase(string name_file, string link_file)
+        //private async void UpdateDatabase(string name_file, string link_file)
+        private async void UpdateDatabase(Data2Database temp_data)
         {
             using (var client = new HttpClient())
             {
+                /*
                 StorageFile file = await StorageFile.GetFileFromPathAsync(@"C:\Users\kanokporn\Pictures\KinectOutput\" + name_file);
-                
+                */
                 var data = new
                 {
-                    time = file.DateCreated.ToString("yyyy-MM-dd HH:mm:ss"),
-                    type = Type,
-                    url = link_file
+                    //time = file.DateCreated.ToString("yyyy-MM-dd HH:mm:ss"),
+                    //type = CurrentPosture.ToString(),
+                    //url = link_file
+                    time = temp_data.time,
+                    type = temp_data.type,
+                    url = temp_data.url
+                    
                 };
                 
                     
@@ -769,15 +1011,31 @@ namespace BedriddenMonitoring
 
         private async Task<string> Get_LinkItem(string Path)
         {
-            var request_link = await oneDriveClient
-                                        .Drive
-                                        .Root
-                                        .ItemWithPath(Path)
-                                        .CreateLink("embed")
-                                        .Request()
-                                        .PostAsync();
-            var link = request_link.Link.WebUrl;
+            var link = "";
+            try
+            {
+                var request_link = await oneDriveClient
+                                       .Drive
+                                       .Root
+                                       .ItemWithPath(Path)
+                                       .CreateLink("embed")
+                                       .Request()
+                                       .PostAsync();
+                link = request_link.Link.WebUrl;
+            }
+            catch (Exception ex)
+            {
+                OutputTBL.Inlines.Insert(0, new Run()
+                {
+                    Text = ex.Message + "\r\n",
+                    Foreground = new SolidColorBrush(Colors.DarkRed)
+                });
+                OutputTBL.UpdateLayout();
+            }
+
             return link;
+
+
         }
 
         private async Task Get_UserData()
@@ -827,7 +1085,7 @@ namespace BedriddenMonitoring
             }
         }
 
-        private async Task CreateNoti()
+        private async Task CreateNoti(StatusType type)
         {
             if (Selected_User.Count != 0)
             {
@@ -844,7 +1102,7 @@ namespace BedriddenMonitoring
 
                             data = new Data()
                             {
-                                type = Type,
+                                type = type.ToString(),
                                 time = DateTime.Now.ToString()
                             }
 
@@ -937,10 +1195,21 @@ namespace BedriddenMonitoring
             return true;
         }
 
+        private void radioButton_Checked(object sender, RoutedEventArgs e)
+        {
+            IsSend = false;
+            foreach (var i in UserStack.Children.OfType<CheckBox>())
+            {
+                i.IsEnabled = false;
+            }
+        }
+
         private void PeriodicSendButt_Checked(object sender, RoutedEventArgs e)
         {
+            IsSend = true;
             IsPeriodicSend = true;
             StatusCB.IsEnabled = false;
+            
             foreach (var i in UserStack.Children.OfType<CheckBox>())
             {
                 i.IsEnabled = true;
@@ -950,6 +1219,7 @@ namespace BedriddenMonitoring
 
         private void StatusSendButt_Checked(object sender, RoutedEventArgs e)
         {
+            IsSend = true;
             IsPeriodicSend = false;
             StatusCB.IsEnabled = true;
             foreach (var i in UserStack.Children.OfType<CheckBox>())
@@ -967,18 +1237,32 @@ namespace BedriddenMonitoring
                 IsRedEnable = true;
                 IsOrangeEnable = false;
                 IsGreenEnable = false;
+                IsBlueEnable = false;
+                NotiStatus = StatusType.red;
             }
             else if(selected.ToString() == "orange")
             {
                 IsRedEnable = false;
                 IsOrangeEnable = true;
                 IsGreenEnable = false;
+                IsBlueEnable = false;
+                NotiStatus = StatusType.orange;
             }
             else if(selected.ToString() == "green")
             {
                 IsRedEnable = false;
                 IsOrangeEnable = false;
                 IsGreenEnable = true;
+                IsBlueEnable = false;
+                NotiStatus = StatusType.green;
+            }
+            else if(selected.ToString() == "blue")
+            {
+                IsBlueEnable = true;
+                IsRedEnable = false;
+                IsOrangeEnable = false;
+                IsGreenEnable = false;
+                NotiStatus = StatusType.blue;
             }
             
         }
@@ -987,30 +1271,32 @@ namespace BedriddenMonitoring
         {
             second = (int)((sender as ComboBox).SelectedValue);
             PeriodTime = new TimeSpan(hour,minute,second);
-            MainTimer.Interval = PeriodTime;
+            UserTimer.Interval = PeriodTime;
         }
 
         private void MinuteCB_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             minute = (int)((sender as ComboBox).SelectedValue);
             PeriodTime = new TimeSpan(hour, minute, second);
-            MainTimer.Interval = PeriodTime;
+            UserTimer.Interval = PeriodTime;
         }
 
         private void HourCB_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             hour = (int)((sender as ComboBox).SelectedValue);
             PeriodTime = new TimeSpan(hour, minute, second);
-            MainTimer.Interval = PeriodTime;
+            UserTimer.Interval = PeriodTime;
+            
         }
+        
 
-        private void radioButton_Checked(object sender, RoutedEventArgs e)
+    }
+    public static class MyFirebase
+    {
+        public static void test()
         {
-            IsSend = false;
-            foreach(var i in UserStack.Children.OfType<CheckBox>())
-            {
-                i.IsEnabled = false;
-            }
+
         }
     }
+   
 }
