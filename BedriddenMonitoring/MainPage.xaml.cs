@@ -493,7 +493,7 @@ namespace BedriddenMonitoring
                     SigninButt.IsEnabled = false;
                     listview.SelectedIndex = 0;
                     await GetUserTask;
-                    //SACheck.IsChecked = true;
+                    SACheck.IsChecked = true;
                     PeriodicSendButt.IsChecked = true;
                     SecondCB.SelectedItem = 20;
                     MinuteCB.SelectedItem = 0;

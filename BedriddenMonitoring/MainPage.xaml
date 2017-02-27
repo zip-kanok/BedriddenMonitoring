@@ -336,7 +336,7 @@
                                             <RadioButton x:Name="StatusSendButt" Content="Just send when status :  " FontSize="18" Checked="StatusSendButt_Checked" Padding="10,0,0,0" VerticalContentAlignment="Center" Height="40" VerticalAlignment="Center" Style="{StaticResource RadioButtonStyle1}" Margin="30,0,0,0"/>
                                         </StackPanel>
                                         <StackPanel Orientation="Vertical" Margin="26,0,0,0">
-                                            <ComboBox x:Name="StatusCB" SelectionChanged="StatusCB_SelectionChanged" Margin="0,110,0,0" Width="90">
+                                            <ComboBox x:Name="StatusCB" SelectionChanged="StatusCB_SelectionChanged" Margin="0,110,0,0" Width="125">
                                                 <ComboBoxItem>Disappear</ComboBoxItem>
                                                 <ComboBoxItem>Don't move for longtime</ComboBoxItem>
                                                 <ComboBoxItem>Sitting</ComboBoxItem>
