@@ -42,12 +42,22 @@ namespace BedriddenMonitoring
     /// </summary>
     public sealed partial class MainPage : Page, INotifyPropertyChanged
     {
+        /// <summary>
+        /// StatusType : represent all patient status
+        ///     *red - disappear
+        ///     *orange - don't move for longtime
+        ///     *yellow - can detect patient but don't lay on bed
+        ///     *lblue - left flip
+        ///     *rblue - right flip
+        ///     *green - normal posture
+        ///     *error - undefine status
+        /// </summary>
         public enum StatusType{
             red,
             orange,
             yellow,
-            Lblue,
-            Rblue,
+            lblue,
+            rblue,
             green,
             error
         }
@@ -115,58 +125,72 @@ namespace BedriddenMonitoring
 
         //Body Joints are drawn here
         private Canvas drawingCanvas;
+        Body bodyGetDepth = null;
 
-        //Variable out of Tutorial
+
+        /// <summary>
+        /// Out of Kinect's variable
+        /// </summary>
+
         bool IsPeople = false;
+        bool IsSend;
+        bool IsFirstTime;
         StorageFolder Folder_Pic = null;
         StorageFolder Folder_Text = null;
         StorageFile File = null;
-        Body bodyGetDepth = null;
-        string Type;
 
+        //vaiable to identify change posture or not
         StatusType CurrentPosture;
         StatusType NewPosture;
-        StatusType NotiStatus;
 
+        //variable to represent current grid
         public string CurrentGrid { get; set; }
 
-        //User can config period. Unit is second
-        TimeSpan PeriodTime;
-        int second;
-        int minute;
-        int hour;
-
-        bool IsSend;
-        bool IsPeriodicSend;
-        bool IsGreenEnable;
-        bool IsRedEnable;
-        bool IsOrangeEnable;
-        bool IsBlueEnable;
-        bool IsFirstTime;
-
-        //Variable to login to OneDrive
+        /// <summary>
+        /// Variable to login to OneDrive
+        /// </summary>
         MsaAuthenticationProvider MyAuthProvider;
         OneDriveClient oneDriveClient;
         string Client_ID = "62757006-5b0a-4c01-b3b6-95468c203789";
         string Return_URL = "https://login.live.com/oauth20_desktop.srf";
         string[] scope = { "wl.signin", "onedrive.readwrite", "wl.offline_access" };
 
+        /// <summary>
+        /// Variable to connect to Firebase
+        /// </summary>
         Dictionary<string, string> Udata = new Dictionary<string, string>();
         List<string> Selected_User = new List<string>();
         string key_fcm = "=AAAAxGsMpEY:APA91bHGQS2c5tIXwn3bP4c-krRvkA1UbKBdWbg68D54LhDh0x-keAZqvTBNGJz81fB4tQnnHHdCAx8oZolOcmykVXXGTlx8rLgPqlBEk3cDKwnHBX4-jJ8bC8hTviTn3pA58mIwIejWglCTMInhGe1-BkR2ZnyFMw";
-        //Data2Database data;
-        DispatcherTimer MainTimer;
+
+        /// <summary>
+        /// All Timer to handle periodic task
+        ///     * ClockTimer - Handle clock right top on UI windows
+        ///     * MainTimer - Handle task that analyze patient's posture
+        ///     * UserTime - Handle sleep with the same posture for long time task
+        ///         #PeriodTime - User can config it with select in combobox (default : 20 [sec.])
+        /// </summary>
         DispatcherTimer ClockTimer;
+        DispatcherTimer MainTimer;
         DispatcherTimer UserTimer;
+        TimeSpan PeriodTime;
+        int second;
+        int minute;
+        int hour;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
-        //Connect to Machine Learning
+        /// <summary>
+        /// Connect to Machine Learning
+        ///     * shoulderLZ is patient's left shoulder in z axis
+        ///     * shoulderRZ is patient's right shoulder in z axis
+        ///     * _apiKey and uri is taken from webservice of predictive model
+        /// </summary>
         double shoulderLZ;
         double shoulderRZ;
         string _apiKey = "zS7dv0wADj5wHUe35VJ03yeJtYdx9USoFq6z3BxXute+ZFy5G+4zMcqz+iLiHGGMrcTetrurlBoPz0iETk9Akw==";
         Uri uri = new Uri("https://ussouthcentral.services.azureml.net/workspaces/dc8cb960fbeb47a3975ca4e45efc7545/services/452051a4485a41a48a1a0341da61f52f/execute?api-version=2.0&details=true");
 
+        //Status of Kinect
         public string StatusText
         {
             get { return this.statusText; }
@@ -204,6 +228,8 @@ namespace BedriddenMonitoring
         public MainPage()
         {
             this.InitializeComponent();
+
+            ///All about initialize kinect component
             // one sensor is currently supported
             this.kinectSensor = KinectSensor.GetDefault();
 
@@ -272,56 +298,26 @@ namespace BedriddenMonitoring
             SettingGrid.Visibility = Visibility.Collapsed;
             InfoGrid.Visibility = Visibility.Collapsed;
 
+            ///Initialize all component that use in this program
+            /// * CreateFolderOutput - create KinectOutput folder and OutputLog on client device
+            /// * SignIn - handle all component that use for signin to onedrive
             CreateFolderOutput();
             SignIn();
             IsFirstTime = true;
             IsSend = true;
-            IsGreenEnable = false;
-            IsRedEnable = false;
-            IsOrangeEnable = false;
 
+            //Add choice to combobox how long to allow patient is in the same posture
             for(var i=1;i<60;i++) SecondCB.Items.Add(i);
             for(var i=0;i<60;i++) MinuteCB.Items.Add(i);
             for(var i=0;i<24;i++) HourCB.Items.Add(i);
-
-            //SecondCB.UpdateLayout();
-            //MinuteCB.UpdateLayout();
-            //HourCB.UpdateLayout();
         }
 
         private async void ChangeState(object sender, object e)
         {
+            CurrentPosture = StatusType.orange;
             Task SaveFile = SaveWriteableBitmapToFile(CurrentPosture);
-            ShowOutputLogChange(CurrentPosture);
-            if (IsSend && IsPeriodicSend) await CreateNoti(CurrentPosture);
-            else if(IsSend && !IsPeriodicSend)
-            {
-                
-                switch (NotiStatus)
-                {
-                    
-                    case StatusType.red:
-                        if (CurrentPosture==NotiStatus) await CreateNoti(StatusType.red);
-                        break;
-                    case StatusType.orange:
-                        if (CurrentPosture==NotiStatus) await CreateNoti(StatusType.orange);
-                        break;
-                    case StatusType.yellow:
-                        if (CurrentPosture == NotiStatus) await CreateNoti(StatusType.yellow);
-                        break;
-                    case StatusType.Lblue:
-                        if (CurrentPosture == NotiStatus) await CreateNoti(StatusType.Lblue);
-                        break;
-                    case StatusType.Rblue:
-                        if (CurrentPosture == NotiStatus) await CreateNoti(StatusType.Rblue);
-                        break;
-                    case StatusType.green:
-                        if (CurrentPosture==NotiStatus) await CreateNoti(StatusType.green);
-                        break;
-                    default:
-                        break;
-                }
-            }
+            ShowOutputLog(CurrentPosture);
+            if (IsSend) await CreateNoti(CurrentPosture);
             try
             {
                 await SaveFile;
@@ -332,9 +328,6 @@ namespace BedriddenMonitoring
                 var dialog = new MessageDialog(ErrorMessage);
                 await dialog.ShowAsync();
             }
-
-            
-            
 
         }
 
@@ -449,8 +442,7 @@ namespace BedriddenMonitoring
                 //check found people in display
                 CheckPeople(bodies);
             }
-
-
+            
 
         }
 
@@ -798,18 +790,24 @@ namespace BedriddenMonitoring
                     });
                     break;
 
-                //case StatusType.orange:
+                case StatusType.orange:
+                    OutputTBL.Inlines.Insert(0, new Run()
+                    {
+                        Text = "[" + DateTime.Now.ToString() + "]\r\nDoesn't move for long time\r\n",
+                        Foreground = new SolidColorBrush(Colors.Orange)
+                    });
+                    break;
 
                 case StatusType.yellow:
                     OutputTBL.Inlines.Insert(0, new Run()
                     {
                         Text = "[" + DateTime.Now.ToString() + "]\r\nDetected! \r\n "
                                     + "Patient does not lie on bed " + "\r\n",
-                        Foreground = new SolidColorBrush(Colors.Orange)
+                        Foreground = new SolidColorBrush(Colors.Yellow)
                     });
                     break;
 
-                case StatusType.Lblue:
+                case StatusType.lblue:
                     OutputTBL.Inlines.Insert(0, new Run()
                     {
                         Text = "[" + DateTime.Now.ToString() + "]\r\nDetected! \r\n "
@@ -818,7 +816,7 @@ namespace BedriddenMonitoring
                     });
                     break;
 
-                case StatusType.Rblue:
+                case StatusType.rblue:
                     OutputTBL.Inlines.Insert(0, new Run()
                     {
                         Text = "[" + DateTime.Now.ToString() + "]\r\nDetected! \r\n "
@@ -840,74 +838,13 @@ namespace BedriddenMonitoring
                     OutputTBL.Inlines.Insert(0, new Run()
                     {
                         Text = "[" + DateTime.Now.ToString() + "]\r\nERROR!!\r\n",
-                        Foreground = new SolidColorBrush(Colors.Green)
+                        Foreground = new SolidColorBrush(Colors.DarkRed)
                     });
                     break;
 
             }
             
             
-        }
-
-        private void ShowOutputLogChange(StatusType Status)
-        {
-            switch (Status)
-            {
-                case StatusType.red:
-                    OutputTBL.Inlines.Insert(0, new Run()
-                    {
-                        Text = "[" + DateTime.Now.ToString() + "]\r\nDON'T MOVE from Not Detected!\r\n",
-                        Foreground = new SolidColorBrush(Colors.Red)
-                    });
-                    break;
-
-                //case StatusType.orange:
-
-                case StatusType.yellow:
-                    OutputTBL.Inlines.Insert(0, new Run()
-                    {
-                        Text = "[" + DateTime.Now.ToString() + "]\r\nDON'T MOVE from  "
-                                    + "Patient does not lie on bed " + "\r\n",
-                        Foreground = new SolidColorBrush(Colors.Orange)
-                    });
-                    break;
-
-                case StatusType.Lblue:
-                    OutputTBL.Inlines.Insert(0, new Run()
-                    {
-                        Text = "[" + DateTime.Now.ToString() + "]\r\nDON'T MOVE from  "
-                                    + "Patient Left Flip " + "\r\n",
-                        Foreground = new SolidColorBrush(Colors.Cyan)
-                    });
-                    break;
-
-                case StatusType.Rblue:
-                    OutputTBL.Inlines.Insert(0, new Run()
-                    {
-                        Text = "[" + DateTime.Now.ToString() + "]\r\nDON'T MOVE from  "
-                                    + "Patient Right Flip " + "\r\n",
-                        Foreground = new SolidColorBrush(Colors.Blue)
-                    });
-                    break;
-
-                case StatusType.green:
-                    OutputTBL.Inlines.Insert(0, new Run()
-                    {
-                        Text = "[" + DateTime.Now.ToString() + "]\r\nDON'T MOVE from  "
-                                    + "Patient lie on bed " + "\r\n",
-                        Foreground = new SolidColorBrush(Colors.Green)
-                    });
-                    break;
-                default :
-                    OutputTBL.Inlines.Insert(0, new Run()
-                    {
-                        Text = "[" + DateTime.Now.ToString() + "]\r\nERROR!!\r\n",
-                        Foreground = new SolidColorBrush(Colors.Green)
-                    });
-                    break;
-
-            }
-
         }
 
         public async Task<StatusType> requestResult(string getJson)
@@ -915,7 +852,7 @@ namespace BedriddenMonitoring
             
             try
             {
-                var client = new HttpClient();// ช่วยส่ง data ขึ้นไปบน server
+                var client = new HttpClient();// send data to server
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
                 HttpResponseMessage response = await client.PostAsync(uri, new StringContent(getJson, System.Text.Encoding.UTF8, "application/json"));
                 string getResult = await response.Content.ReadAsStringAsync();
@@ -932,10 +869,8 @@ namespace BedriddenMonitoring
                 });
                 return StatusType.error;
             }
-            
-
-
-        }//Request Result
+           
+        }
 
         public StatusType Deserialize(string getJson)
         {
@@ -954,13 +889,12 @@ namespace BedriddenMonitoring
                 if (RZ > LZ)
                 {
                     //Right Flip
-                    status = StatusType.Rblue;
-                    
+                    status = StatusType.rblue;
                 }
                 else
                 {
                     //Left Flip
-                    status = StatusType.Lblue;
+                    status = StatusType.lblue;
                 }
             }
             else
@@ -1039,23 +973,16 @@ namespace BedriddenMonitoring
             
         }
 
-        //private async void UpdateDatabase(string name_file, string link_file)
         private async void UpdateDatabase(Data2Database temp_data)
         {
             using (var client = new HttpClient())
             {
-                /*
-                StorageFile file = await StorageFile.GetFileFromPathAsync(@"C:\Users\kanokporn\Pictures\KinectOutput\" + name_file);
-                */
+
                 var data = new
                 {
-                    //time = file.DateCreated.ToString("yyyy-MM-dd HH:mm:ss"),
-                    //type = CurrentPosture.ToString(),
-                    //url = link_file
                     time = temp_data.time,
                     type = temp_data.type,
                     url = temp_data.url
-                    
                 };
                 
                     
@@ -1088,7 +1015,6 @@ namespace BedriddenMonitoring
                     Text = ex.Message + "\r\n",
                     Foreground = new SolidColorBrush(Colors.DarkRed)
                 });
-                //OutputTBL.UpdateLayout();
             }
 
             return link;
@@ -1128,8 +1054,6 @@ namespace BedriddenMonitoring
                         }
                         count++;
                     }
-                    //UserStack.UpdateLayout();
-
                 }
             }
             catch(Exception ex)
@@ -1139,7 +1063,6 @@ namespace BedriddenMonitoring
                     Text = ex.Message + "\r\n",
                     Foreground = new SolidColorBrush(Colors.DarkRed)
                 });
-                //OutputTBL.UpdateLayout();
             }
         }
 
@@ -1253,7 +1176,7 @@ namespace BedriddenMonitoring
             return true;
         }
 
-        private void radioButton_Checked(object sender, RoutedEventArgs e)
+        private void DonotSendButton_Checked(object sender, RoutedEventArgs e)
         {
             IsSend = false;
             foreach (var i in UserStack.Children.OfType<CheckBox>())
@@ -1265,88 +1188,11 @@ namespace BedriddenMonitoring
         private void PeriodicSendButt_Checked(object sender, RoutedEventArgs e)
         {
             IsSend = true;
-            IsPeriodicSend = true;
-            StatusCB.IsEnabled = false;
-            
             foreach (var i in UserStack.Children.OfType<CheckBox>())
             {
                 i.IsEnabled = true;
             }
 
-        }
-
-        private void StatusSendButt_Checked(object sender, RoutedEventArgs e)
-        {
-            IsSend = true;
-            IsPeriodicSend = false;
-            StatusCB.IsEnabled = true;
-            foreach (var i in UserStack.Children.OfType<CheckBox>())
-            {
-                i.IsEnabled = true;
-            }
-        }
-
-        private void StatusCB_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            var selected = ((ComboBoxItem)((sender as ComboBox).SelectedItem)).Content;            
-            /*
-            if(selected.ToString() == "red")
-            {
-                IsRedEnable = true;
-                IsOrangeEnable = false;
-                IsGreenEnable = false;
-                IsBlueEnable = false;
-                NotiStatus = StatusType.red;
-            }
-            else if(selected.ToString() == "orange")
-            {
-                IsRedEnable = false;
-                IsOrangeEnable = true;
-                IsGreenEnable = false;
-                IsBlueEnable = false;
-                NotiStatus = StatusType.orange;
-            }
-            else if(selected.ToString() == "green")
-            {
-                IsRedEnable = false;
-                IsOrangeEnable = false;
-                IsGreenEnable = true;
-                IsBlueEnable = false;
-                NotiStatus = StatusType.green;
-            }
-            else if(selected.ToString() == "blue")
-            {
-                IsBlueEnable = true;
-                IsRedEnable = false;
-                IsOrangeEnable = false;
-                IsGreenEnable = false;
-                NotiStatus = StatusType.blue;
-            }*/
-            if(selected.ToString() == "Disappear")
-            {
-                NotiStatus = StatusType.red;
-            }
-            else if(selected.ToString() == "Don't move for longtime")
-            {
-                NotiStatus = StatusType.orange;
-            }
-            else if(selected.ToString() == "Sitting")
-            {
-                NotiStatus = StatusType.yellow;
-            }
-            else if(selected.ToString() == "Left Flip")
-            {
-                NotiStatus = StatusType.Lblue;
-            }
-            else if(selected.ToString() == "Right Flip")
-            {
-                NotiStatus = StatusType.Rblue;
-            }
-            else if(selected.ToString() == "Normal")
-            {
-                NotiStatus = StatusType.green;
-            }
-            
         }
 
         private void SecondCB_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1372,13 +1218,6 @@ namespace BedriddenMonitoring
         }
         
 
-    }
-    public static class MyFirebase
-    {
-        public static void test()
-        {
-
-        }
     }
    
 }
