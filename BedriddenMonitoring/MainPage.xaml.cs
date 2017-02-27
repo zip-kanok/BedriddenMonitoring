@@ -10,6 +10,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text;
 using System.Threading;
@@ -44,8 +45,11 @@ namespace BedriddenMonitoring
         public enum StatusType{
             red,
             orange,
-            blue,
+            yellow,
+            Lblue,
+            Rblue,
             green,
+            error
         }
         
         interface IBufferByteAccess
@@ -156,7 +160,13 @@ namespace BedriddenMonitoring
         DispatcherTimer UserTimer;
 
         public event PropertyChangedEventHandler PropertyChanged;
-        
+
+        //Connect to Machine Learning
+        double shoulderLZ;
+        double shoulderRZ;
+        string _apiKey = "zS7dv0wADj5wHUe35VJ03yeJtYdx9USoFq6z3BxXute+ZFy5G+4zMcqz+iLiHGGMrcTetrurlBoPz0iETk9Akw==";
+        Uri uri = new Uri("https://ussouthcentral.services.azureml.net/workspaces/dc8cb960fbeb47a3975ca4e45efc7545/services/452051a4485a41a48a1a0341da61f52f/execute?api-version=2.0&details=true");
+
         public string StatusText
         {
             get { return this.statusText; }
@@ -274,53 +284,36 @@ namespace BedriddenMonitoring
             for(var i=0;i<60;i++) MinuteCB.Items.Add(i);
             for(var i=0;i<24;i++) HourCB.Items.Add(i);
 
-            SecondCB.UpdateLayout();
-            MinuteCB.UpdateLayout();
-            HourCB.UpdateLayout();
+            //SecondCB.UpdateLayout();
+            //MinuteCB.UpdateLayout();
+            //HourCB.UpdateLayout();
         }
 
         private async void ChangeState(object sender, object e)
         {
-            //Task NotiTask = null;
-            //Task NoitiTask = CreateNoti(CurrentPosture);
             Task SaveFile = SaveWriteableBitmapToFile(CurrentPosture);
             ShowOutputLogChange(CurrentPosture);
             if (IsSend && IsPeriodicSend) await CreateNoti(CurrentPosture);
             else if(IsSend && !IsPeriodicSend)
             {
-                /*
-                switch (CurrentPosture)
-                {
-                    if(CurrentPosture)
-                    case StatusType.blue:
-                        if (IsBlueEnable) NotiTask = CreateNoti(StatusType.blue);
-                        break;
-
-                    case StatusType.red:
-                        if (IsRedEnable) NotiTask = CreateNoti(StatusType.red);
-                        break;
-                    case StatusType.orange:
-                        if (IsOrangeEnable) NotiTask = CreateNoti(StatusType.orange);
-                        break;
-                    case StatusType.green:
-                        if (IsGreenEnable) NotiTask = CreateNoti(StatusType.green);
-                        break;
-                    default:
-                        break;
-                }*/
-                
-                
                 
                 switch (NotiStatus)
                 {
-                    case StatusType.blue:
-                        if (CurrentPosture==NotiStatus) await CreateNoti(StatusType.blue);
-                        break;
+                    
                     case StatusType.red:
                         if (CurrentPosture==NotiStatus) await CreateNoti(StatusType.red);
                         break;
                     case StatusType.orange:
                         if (CurrentPosture==NotiStatus) await CreateNoti(StatusType.orange);
+                        break;
+                    case StatusType.yellow:
+                        if (CurrentPosture == NotiStatus) await CreateNoti(StatusType.yellow);
+                        break;
+                    case StatusType.Lblue:
+                        if (CurrentPosture == NotiStatus) await CreateNoti(StatusType.Lblue);
+                        break;
+                    case StatusType.Rblue:
+                        if (CurrentPosture == NotiStatus) await CreateNoti(StatusType.Rblue);
                         break;
                     case StatusType.green:
                         if (CurrentPosture==NotiStatus) await CreateNoti(StatusType.green);
@@ -332,7 +325,6 @@ namespace BedriddenMonitoring
             try
             {
                 await SaveFile;
-                //if(IsSend&&IsPeriodicSend) await NotiTask;
             }
             catch(Exception ex)
             {
@@ -702,95 +694,10 @@ namespace BedriddenMonitoring
  
         private async void CheckStatus(object sender, object e)
         {
-
-            /*
-            bool printLog = true;
-            Task SavetoFileTask = SaveWriteableBitmapToFile();
-
-            if (IsPeople)
-            {
-                Joint head = bodyGetDepth.Joints[JointType.Head];
-                double headZ = head.Position.Z;
-                string headZstring = headZ + "";
-
-                if (printLog)
-                {
-                    if (headZ >= 1.7)
-                    {
-                        Type = "green";
-                        OutputTBL.Inlines.Insert(0, new Run()
-                        {
-                            Text = "[" + DateTime.Now.ToString() + "] Detected! \r\n "
-                                    + "Patient is lie on bed " + "\r\n",
-                            Foreground = new SolidColorBrush(Colors.Green)
-                        });
-                        if (IsSend&&!IsPeriodicSend && IsGreenEnable) await CreateNoti();
-                        
-                    }
-
-                    else
-                    {
-                        Type = "orange";
-                        OutputTBL.Inlines.Insert(0, new Run()
-                        {
-                            Text = "[" + DateTime.Now.ToString() + "] Detected! \r\n "
-                                    + "Patient does not lie on bed " + "\r\n",
-                            Foreground = new SolidColorBrush(Colors.Orange)
-                        });
-                        if (IsSend&&!IsPeriodicSend && IsOrangeEnable) await CreateNoti();
-
-                    }
-                }
-                else
-                {
-                    Type = "orange";
-                    OutputTBL.Inlines.Insert(0, new Run()
-                    {
-                        Text = "Z head " + "Patient does not lie on bed " + "\r\n",
-                        Foreground = new SolidColorBrush(Colors.Orange)
-                    });
-                    if (IsSend&&!IsPeriodicSend && IsOrangeEnable) await CreateNoti();
-
-                }
-            }
-            else
-            {
-                Type = "red";
-                
-                OutputTBL.Inlines.Insert(0, new Run()
-                {
-                    Text = "[" + DateTime.Now.ToString() + "]\r\nNot Detected!\r\n",
-                    Foreground = new SolidColorBrush(Colors.Red)
-                });
-                if (IsSend&&!IsPeriodicSend&&IsRedEnable) await CreateNoti();
-            }
-
-            try
-            {
-                await SavetoFileTask;
-                if(IsSend && IsPeriodicSend) await CreateNoti();
-            }
-            catch (Exception excep)
-            {
-                OutputTBL.Inlines.Insert(0, new Run()
-                {
-                    Text = excep.Message+"\r\n",
-                    Foreground = new SolidColorBrush(Colors.DarkRed)
-                });
-            }
-
-            OutputTBL.UpdateLayout();
-            CreateLogfile();
-            */
-            //Task T = SaveWriteableBitmapToFile();
+            
             if (!IsPeople)
             {
                 NewPosture = StatusType.red;
-                //await SaveWriteableBitmapToFile();
-                //await CreateNoti(NewPosture);
-                //if (IsSend && !IsPeriodicSend && IsRedEnable) await CreateNoti(NewPosture);
-                //ShowOutputLog(StatusType.red);
-
             }
             else
             {
@@ -798,18 +705,71 @@ namespace BedriddenMonitoring
                 double headZ = head.Position.Z;
                 string headZstring = headZ + "";
 
+                shoulderLZ = bodyGetDepth.Joints[JointType.ShoulderLeft].Position.Z;
+                shoulderRZ = bodyGetDepth.Joints[JointType.ShoulderRight].Position.Z;
+
                 if (headZ >= 1.7)
                 {
-                    NewPosture = StatusType.green;
-                    //if (IsSend && !IsPeriodicSend && IsGreenEnable) await CreateNoti(NewPosture);
-                    //ShowOutputLog(StatusType.Normal);
+                    var obj = new MLInit()
+                    {
+                        Inputs = new Parents()
+                        {
+                            input1 = new Children()
+                            {
+                                ColumnNames = new string[]
+                                {
+                                    "LZ",
+                                    "RZ",
+                                    "status"
+                                },
+                                Values = new string[,]
+                                {
+                                    {
+                                        shoulderLZ.ToString(),
+                                        shoulderRZ.ToString(),
+                                        ""
+                                    },
+                                    {
+                                        shoulderLZ.ToString(),
+                                        shoulderRZ.ToString(),
+                                        ""
+                                    }
+                                }
+                            },
+                            input2 = new Children()
+                            {
+                                ColumnNames = new string[]
+                                {
+                                    "LZ",
+                                    "RZ",
+                                    "status"
+                                },
+                                Values = new string[,]
+                                {
+                                    {
+                                        shoulderLZ.ToString(),
+                                        shoulderRZ.ToString(),
+                                        ""
+                                    },
+                                    {
+                                        shoulderLZ.ToString(),
+                                        shoulderRZ.ToString(),
+                                        ""
+                                    }
+                                }
+                            }
+                        },
+                        GlobalParameters = new Dictionary<string, string>(){ }
+
+                    };
+                    string output = JsonConvert.SerializeObject(obj);
+                    StatusType result_type = await requestResult(output);
+                    NewPosture = result_type;
                 }
 
                 else
                 {
-                    NewPosture = StatusType.orange;
-                    //if (IsSend && !IsPeriodicSend && IsOrangeEnable) await CreateNoti(NewPosture);
-                    //ShowOutputLog(StatusType.DoNotLayDown);
+                    NewPosture = StatusType.yellow;
                 }
 
             }
@@ -824,7 +784,6 @@ namespace BedriddenMonitoring
                 await SaveTask;
                 await CreateNoti(CurrentPosture);
             }
-            //await T;
         }
 
         private void ShowOutputLog(StatusType Status)
@@ -839,34 +798,54 @@ namespace BedriddenMonitoring
                     });
                     break;
 
-                case StatusType.orange:
+                //case StatusType.orange:
+
+                case StatusType.yellow:
                     OutputTBL.Inlines.Insert(0, new Run()
                     {
-                        Text = "[" + DateTime.Now.ToString() + "] Detected! \r\n "
+                        Text = "[" + DateTime.Now.ToString() + "]\r\nDetected! \r\n "
                                     + "Patient does not lie on bed " + "\r\n",
                         Foreground = new SolidColorBrush(Colors.Orange)
                     });
                     break;
 
-                case StatusType.blue:
+                case StatusType.Lblue:
                     OutputTBL.Inlines.Insert(0, new Run()
                     {
-                        Text = "[" + DateTime.Now.ToString() + "] Detected! \r\n "
-                                    + "Patient Flip " + "\r\n",
-                        Foreground = new SolidColorBrush(Colors.Gold)
+                        Text = "[" + DateTime.Now.ToString() + "]\r\nDetected! \r\n "
+                                    + "Patient Left Flip " + "\r\n",
+                        Foreground = new SolidColorBrush(Colors.Cyan)
+                    });
+                    break;
+
+                case StatusType.Rblue:
+                    OutputTBL.Inlines.Insert(0, new Run()
+                    {
+                        Text = "[" + DateTime.Now.ToString() + "]\r\nDetected! \r\n "
+                                    + "Patient Right Flip " + "\r\n",
+                        Foreground = new SolidColorBrush(Colors.Blue)
                     });
                     break;
 
                 case StatusType.green:
                     OutputTBL.Inlines.Insert(0, new Run()
                     {
-                        Text = "[" + DateTime.Now.ToString() + "] Detected! \r\n "
+                        Text = "[" + DateTime.Now.ToString() + "]\r\nDetected! \r\n "
                                     + "Patient lie on bed " + "\r\n",
                         Foreground = new SolidColorBrush(Colors.Green)
                     });
                     break;
 
+                default:
+                    OutputTBL.Inlines.Insert(0, new Run()
+                    {
+                        Text = "[" + DateTime.Now.ToString() + "]\r\nERROR!!\r\n",
+                        Foreground = new SolidColorBrush(Colors.Green)
+                    });
+                    break;
+
             }
+            
             
         }
 
@@ -877,43 +856,122 @@ namespace BedriddenMonitoring
                 case StatusType.red:
                     OutputTBL.Inlines.Insert(0, new Run()
                     {
-                        Text = "[" + DateTime.Now.ToString() + "]\r\nCHANGE!!  Not Detected!\r\n",
+                        Text = "[" + DateTime.Now.ToString() + "]\r\nDON'T MOVE from Not Detected!\r\n",
                         Foreground = new SolidColorBrush(Colors.Red)
                     });
                     break;
 
-                case StatusType.orange:
+                //case StatusType.orange:
+
+                case StatusType.yellow:
                     OutputTBL.Inlines.Insert(0, new Run()
                     {
-                        Text = "[" + DateTime.Now.ToString() + "]\r\nCHANGE!!  Detected! \r\n "
+                        Text = "[" + DateTime.Now.ToString() + "]\r\nDON'T MOVE from  "
                                     + "Patient does not lie on bed " + "\r\n",
                         Foreground = new SolidColorBrush(Colors.Orange)
                     });
                     break;
 
-                case StatusType.blue:
+                case StatusType.Lblue:
                     OutputTBL.Inlines.Insert(0, new Run()
                     {
-                        Text = "[" + DateTime.Now.ToString() + "]\r\nCHANGE!!  Detected! \r\n "
-                                    + "Patient Flip " + "\r\n",
-                        Foreground = new SolidColorBrush(Colors.Gold)
+                        Text = "[" + DateTime.Now.ToString() + "]\r\nDON'T MOVE from  "
+                                    + "Patient Left Flip " + "\r\n",
+                        Foreground = new SolidColorBrush(Colors.Cyan)
+                    });
+                    break;
+
+                case StatusType.Rblue:
+                    OutputTBL.Inlines.Insert(0, new Run()
+                    {
+                        Text = "[" + DateTime.Now.ToString() + "]\r\nDON'T MOVE from  "
+                                    + "Patient Right Flip " + "\r\n",
+                        Foreground = new SolidColorBrush(Colors.Blue)
                     });
                     break;
 
                 case StatusType.green:
                     OutputTBL.Inlines.Insert(0, new Run()
                     {
-                        Text = "[" + DateTime.Now.ToString() + "]\r\nCHANGE!!  Detected! \r\n "
+                        Text = "[" + DateTime.Now.ToString() + "]\r\nDON'T MOVE from  "
                                     + "Patient lie on bed " + "\r\n",
                         Foreground = new SolidColorBrush(Colors.Green)
                     });
                     break;
                 default :
+                    OutputTBL.Inlines.Insert(0, new Run()
+                    {
+                        Text = "[" + DateTime.Now.ToString() + "]\r\nERROR!!\r\n",
+                        Foreground = new SolidColorBrush(Colors.Green)
+                    });
                     break;
 
             }
 
         }
+
+        public async Task<StatusType> requestResult(string getJson)
+        {
+            
+            try
+            {
+                var client = new HttpClient();// ช่วยส่ง data ขึ้นไปบน server
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+                HttpResponseMessage response = await client.PostAsync(uri, new StringContent(getJson, System.Text.Encoding.UTF8, "application/json"));
+                string getResult = await response.Content.ReadAsStringAsync();
+                StatusType deresult = Deserialize(getResult);
+                return deresult;
+                
+            }
+            catch (Exception ex)
+            {
+                OutputTBL.Inlines.Insert(0, new Run()
+                {
+                    Text = ex.Message + "\r\n",
+                    Foreground = new SolidColorBrush(Colors.DarkRed)
+                });
+                return StatusType.error;
+            }
+            
+
+
+        }//Request Result
+
+        public StatusType Deserialize(string getJson)
+        {
+            //Deserialize Current Weather
+            var parseJson = JObject.Parse(getJson);
+            int ResultLeft = (int)parseJson["Results"]["output1"]["value"]["Values"][0][3];
+            int ResultRight = (int)parseJson["Results"]["output2"]["value"]["Values"][0][3];
+            double probLeft = (double)parseJson["Results"]["output1"]["value"]["Values"][0][4];
+            double probRight = (double)parseJson["Results"]["output2"]["value"]["Values"][0][4];
+            double LZ = (double)parseJson["Results"]["output1"]["value"]["Values"][0][0];
+            double RZ = (double)parseJson["Results"]["output2"]["value"]["Values"][0][1];
+
+            StatusType status;
+            if (ResultLeft == 1 || ResultRight == 1)
+            {
+                if (RZ > LZ)
+                {
+                    //Right Flip
+                    status = StatusType.Rblue;
+                    
+                }
+                else
+                {
+                    //Left Flip
+                    status = StatusType.Lblue;
+                }
+            }
+            else
+            {
+                //Normal
+                status = StatusType.green;
+            }
+
+            return status;
+            
+        } 
         private async Task SaveWriteableBitmapToFile(StatusType Type)
         {
             Data2Database data = new Data2Database();
@@ -1030,7 +1088,7 @@ namespace BedriddenMonitoring
                     Text = ex.Message + "\r\n",
                     Foreground = new SolidColorBrush(Colors.DarkRed)
                 });
-                OutputTBL.UpdateLayout();
+                //OutputTBL.UpdateLayout();
             }
 
             return link;
@@ -1070,7 +1128,7 @@ namespace BedriddenMonitoring
                         }
                         count++;
                     }
-                    UserStack.UpdateLayout();
+                    //UserStack.UpdateLayout();
 
                 }
             }
@@ -1081,7 +1139,7 @@ namespace BedriddenMonitoring
                     Text = ex.Message + "\r\n",
                     Foreground = new SolidColorBrush(Colors.DarkRed)
                 });
-                OutputTBL.UpdateLayout();
+                //OutputTBL.UpdateLayout();
             }
         }
 
@@ -1231,7 +1289,7 @@ namespace BedriddenMonitoring
         private void StatusCB_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             var selected = ((ComboBoxItem)((sender as ComboBox).SelectedItem)).Content;            
-           
+            /*
             if(selected.ToString() == "red")
             {
                 IsRedEnable = true;
@@ -1263,6 +1321,30 @@ namespace BedriddenMonitoring
                 IsOrangeEnable = false;
                 IsGreenEnable = false;
                 NotiStatus = StatusType.blue;
+            }*/
+            if(selected.ToString() == "Disappear")
+            {
+                NotiStatus = StatusType.red;
+            }
+            else if(selected.ToString() == "Don't move for longtime")
+            {
+                NotiStatus = StatusType.orange;
+            }
+            else if(selected.ToString() == "Sitting")
+            {
+                NotiStatus = StatusType.yellow;
+            }
+            else if(selected.ToString() == "Left Flip")
+            {
+                NotiStatus = StatusType.Lblue;
+            }
+            else if(selected.ToString() == "Right Flip")
+            {
+                NotiStatus = StatusType.Rblue;
+            }
+            else if(selected.ToString() == "Normal")
+            {
+                NotiStatus = StatusType.green;
             }
             
         }

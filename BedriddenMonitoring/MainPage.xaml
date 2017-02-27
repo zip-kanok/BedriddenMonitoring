@@ -6,6 +6,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d" >
+
     <Page.Resources>
         <Style x:Key="ListViewItemStyle1" TargetType="ListViewItem">
             <Setter Property="FontFamily" Value="{ThemeResource ContentControlThemeFontFamily}"/>
@@ -282,11 +283,14 @@
                         <RowDefinition Height="30"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
+
                     <Grid Grid.Row="1" Margin="20">
+
                         <Image  x:Name="FrameDisplayImage" Stretch="Uniform" />
                         <Viewbox>
                             <Grid x:Name="BodyJointsGrid" Background="Transparent" Width="512" Height="414" />
                         </Viewbox>
+                        <Rectangle Fill="Red" Width="1"/>
                     </Grid>
                     <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,10,0">
                         <TextBlock Text="Kinect Status  :   " VerticalAlignment="Center" FontSize="18"/>
@@ -332,10 +336,13 @@
                                             <RadioButton x:Name="StatusSendButt" Content="Just send when status :  " FontSize="18" Checked="StatusSendButt_Checked" Padding="10,0,0,0" VerticalContentAlignment="Center" Height="40" VerticalAlignment="Center" Style="{StaticResource RadioButtonStyle1}" Margin="30,0,0,0"/>
                                         </StackPanel>
                                         <StackPanel Orientation="Vertical" Margin="26,0,0,0">
-                                            <ComboBox x:Name="StatusCB" SelectionChanged="StatusCB_SelectionChanged" Margin="0,110,0,0">
-                                                <ComboBoxItem>red</ComboBoxItem>
-                                                <ComboBoxItem>orange</ComboBoxItem>
-                                                <ComboBoxItem>green</ComboBoxItem>
+                                            <ComboBox x:Name="StatusCB" SelectionChanged="StatusCB_SelectionChanged" Margin="0,110,0,0" Width="90">
+                                                <ComboBoxItem>Disappear</ComboBoxItem>
+                                                <ComboBoxItem>Don't move for longtime</ComboBoxItem>
+                                                <ComboBoxItem>Sitting</ComboBoxItem>
+                                                <ComboBoxItem>Left Flip</ComboBoxItem>
+                                                <ComboBoxItem>Right Flip</ComboBoxItem>
+                                                <ComboBoxItem>Normal</ComboBoxItem>
                                             </ComboBox>
 
                                         </StackPanel>

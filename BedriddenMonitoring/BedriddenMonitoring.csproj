@@ -119,10 +119,13 @@
     <Compile Include="MainPage.xaml.cs">
       <DependentUpon>MainPage.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Model\Children.cs" />
     <Compile Include="Model\Data.cs" />
     <Compile Include="Model\Data2Database.cs" />
     <Compile Include="Model\FCM_Data.cs" />
+    <Compile Include="Model\MLInit.cs" />
     <Compile Include="Model\Notification.cs" />
+    <Compile Include="Model\Parents.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
