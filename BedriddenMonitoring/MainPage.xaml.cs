@@ -314,10 +314,11 @@ namespace BedriddenMonitoring
 
         private async void ChangeState(object sender, object e)
         {
+            Task SaveFile = SaveWriteableBitmapToFile(StatusType.orange);
+            ShowOutputLog(StatusType.orange);
+            if (IsSend && (CurrentPosture != StatusType.red)) await CreateNoti(StatusType.orange);
             CurrentPosture = StatusType.orange;
-            Task SaveFile = SaveWriteableBitmapToFile(CurrentPosture);
-            ShowOutputLog(CurrentPosture);
-            if (IsSend) await CreateNoti(CurrentPosture);
+
             try
             {
                 await SaveFile;
@@ -328,6 +329,7 @@ namespace BedriddenMonitoring
                 var dialog = new MessageDialog(ErrorMessage);
                 await dialog.ShowAsync();
             }
+            
 
         }
 
@@ -812,7 +814,7 @@ namespace BedriddenMonitoring
                     {
                         Text = "[" + DateTime.Now.ToString() + "]\r\nDetected! \r\n "
                                     + "Patient Left Flip " + "\r\n",
-                        Foreground = new SolidColorBrush(Colors.Cyan)
+                        Foreground = new SolidColorBrush(Colors.Blue)
                     });
                     break;
 
@@ -821,7 +823,7 @@ namespace BedriddenMonitoring
                     {
                         Text = "[" + DateTime.Now.ToString() + "]\r\nDetected! \r\n "
                                     + "Patient Right Flip " + "\r\n",
-                        Foreground = new SolidColorBrush(Colors.Blue)
+                        Foreground = new SolidColorBrush(Colors.Cyan)
                     });
                     break;
 
@@ -1066,7 +1068,7 @@ namespace BedriddenMonitoring
             }
         }
 
-        private async Task CreateNoti(StatusType type)
+        private async Task CreateNoti(StatusType types)
         {
             if (Selected_User.Count != 0)
             {
@@ -1083,7 +1085,7 @@ namespace BedriddenMonitoring
 
                             data = new Data()
                             {
-                                type = type.ToString(),
+                                type = types.ToString(),
                                 time = DateTime.Now.ToString()
                             }
 

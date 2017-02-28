@@ -305,7 +305,7 @@
                     </ScrollViewer>
 
                 </Grid>
-                <Grid x:Name="AccountGrid" Grid.ColumnSpan="2" Grid.Column="1" Grid.Row="1" Background="#FFCDE0CC" Opacity="0.8" d:IsHidden="True">
+                <Grid x:Name="AccountGrid" Grid.ColumnSpan="2" Grid.Column="1" Grid.Row="1" Background="#7F000000" Opacity="0.8" d:IsHidden="True">
                     <Button x:Name="SigninButt" Content="Sign In" HorizontalAlignment="Left" Height="69" Margin="149,149,0,0" VerticalAlignment="Top" Width="165" Background="#B20068FF" Click="SigninButt_Click"/>
                     <Button x:Name="SignoutButt" Content="Sign Out" HorizontalAlignment="Left" Height="69" Margin="350,149,0,0" VerticalAlignment="Top" Width="165" Background="#B2FF0000" Click="SignoutButt_Click"/>
                 </Grid>
@@ -315,13 +315,26 @@
 
                             <Border BorderBrush="#FFCDE0CC" BorderThickness="2" CornerRadius="10" Padding="10" Margin="0,0,0,30" >
 
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock x:Name="textBlock4" TextWrapping="Wrap" Text="Program Period : " VerticalAlignment="Center" FontSize="20" Margin="0,0,20,0"/>
-                                    <StackPanel Orientation="Horizontal" Margin="0" Width="300">
-                                        <ComboBox x:Name="HourCB" Width="80" Margin="0,0,20,0" PlaceholderText="HH" SelectionChanged="HourCB_SelectionChanged" />
-                                        <ComboBox x:Name="MinuteCB" Width="80" Margin="0,0,20,0" PlaceholderText="MM" SelectionChanged="MinuteCB_SelectionChanged"/>
-                                        <ComboBox x:Name="SecondCB" Margin="0,0,20,0" PlaceholderText="SS" Width="80" SelectionChanged="SecondCB_SelectionChanged"/>
+                                <StackPanel Orientation="Vertical">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock x:Name="textBlock5" TextWrapping="Wrap" Text="Program Period : " VerticalAlignment="Center" FontSize="20" Margin="0,0,20,0"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                            <StackPanel Margin="8,0">
+                                                <TextBlock Text="Hour" FontSize="16" HorizontalAlignment="Center"/>
+                                                <ComboBox x:Name="HourCB" Width="80" PlaceholderText="HH" SelectionChanged="HourCB_SelectionChanged" Padding="8,0" Margin="0" />
+                                            </StackPanel>
+                                            <StackPanel Margin="8,0">
+                                                <TextBlock Text="Minute" FontSize="16" HorizontalAlignment="Center"/>
+                                                <ComboBox x:Name="MinuteCB" Width="80" PlaceholderText="MM" SelectionChanged="MinuteCB_SelectionChanged"/>
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="Second" FontSize="16" HorizontalAlignment="Center"/>
+                                                <ComboBox x:Name="SecondCB" PlaceholderText="SS" Width="80" SelectionChanged="SecondCB_SelectionChanged" Margin="8,0"/>
+                                            </StackPanel>
+                                        </StackPanel>
+
                                     </StackPanel>
+
                                 </StackPanel>
 
                             </Border>
