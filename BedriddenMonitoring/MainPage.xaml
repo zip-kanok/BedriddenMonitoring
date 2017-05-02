@@ -305,11 +305,12 @@
                     </ScrollViewer>
 
                 </Grid>
-                <Grid x:Name="AccountGrid" Grid.ColumnSpan="2" Grid.Column="1" Grid.Row="1" Background="#7F000000" Opacity="0.8" d:IsHidden="True">
+                <Grid x:Name="AccountGrid" Grid.ColumnSpan="2" Grid.Column="1" Grid.Row="1" Background="#7F000000" Opacity="0.8">
                     <Button x:Name="SigninButt" Content="Sign In" HorizontalAlignment="Left" Height="69" Margin="149,149,0,0" VerticalAlignment="Top" Width="165" Background="#B20068FF" Click="SigninButt_Click"/>
                     <Button x:Name="SignoutButt" Content="Sign Out" HorizontalAlignment="Left" Height="69" Margin="350,149,0,0" VerticalAlignment="Top" Width="165" Background="#B2FF0000" Click="SignoutButt_Click"/>
+                    <TextBlock x:Name="DetailUserTBL" HorizontalAlignment="Left" Height="69" Margin="155,35,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="477" FontSize="36"/>
                 </Grid>
-                <Grid x:Name="SettingGrid" Grid.ColumnSpan="2" Grid.Column="1" Grid.Row="1">
+                <Grid x:Name="SettingGrid" Grid.ColumnSpan="2" Grid.Column="1" Grid.Row="1" d:IsHidden="True">
                     <Grid Background="#7F000000">
                         <StackPanel Margin="90,18,606,0" Orientation="Vertical">
 
@@ -346,6 +347,14 @@
                                             <TextBlock x:Name="textBlock3" HorizontalAlignment="Left" TextWrapping="Wrap" Text="Notification Frequency" VerticalAlignment="Top" FontSize="20" Margin="0"/>
                                             <RadioButton x:Name="DonotSend" Content="Don't send notification" Padding="10,0,0,0" FontSize="18" Margin="30,0,0,0" Height="40" VerticalContentAlignment="Center" Style="{StaticResource RadioButtonStyle1}" Checked="DonotSendButton_Checked"/>
                                             <RadioButton x:Name="PeriodicSendButt" Content="Program period send" FontSize="18" Checked="PeriodicSendButt_Checked" Padding="10,0,0,0" Margin="30,0,0,0" Height="40" VerticalContentAlignment="Center" VerticalAlignment="Center" Style="{StaticResource RadioButtonStyle1}"/>
+                                            <RadioButton x:Name="StatusSendButt" Content="Send notification when status is" FontSize="18" Checked="StatusSendButt_Checked" Padding="10,0,0,0" Margin="30,0,0,0" Height="40" VerticalContentAlignment="Center" VerticalAlignment="Center" Style="{StaticResource RadioButtonStyle1}"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Vertical" Margin="0,0,0,0" VerticalAlignment="Bottom">
+                                            <ComboBox x:Name="StatusCB" SelectionChanged="StatusCB_SelectionChanged" Margin="20,0,0,0" Width="100" IsEnabledChanged="StatusCB_IsEnabledChanged">
+                                                <ComboBoxItem Content="Disappear"/>
+                                                <ComboBoxItem Content="Don't move"/>
+                                                <ComboBoxItem Content="move"/>
+                                            </ComboBox>
                                         </StackPanel>
 
                                     </StackPanel>

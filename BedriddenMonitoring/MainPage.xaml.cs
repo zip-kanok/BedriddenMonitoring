@@ -133,7 +133,11 @@ namespace BedriddenMonitoring
         /// </summary>
 
         bool IsPeople = false;
+
         bool IsSend;
+        bool IsDisappearEnable;
+        bool IsDonotmoveEnable;
+
         bool IsFirstTime;
         StorageFolder Folder_Pic = null;
         StorageFolder Folder_Text = null;
@@ -150,7 +154,7 @@ namespace BedriddenMonitoring
         /// Variable to login to OneDrive
         /// </summary>
         MsaAuthenticationProvider MyAuthProvider;
-        OneDriveClient oneDriveClient;
+        public OneDriveClient oneDriveClient;
         string Client_ID = "62757006-5b0a-4c01-b3b6-95468c203789";
         string Return_URL = "https://login.live.com/oauth20_desktop.srf";
         string[] scope = { "wl.signin", "onedrive.readwrite", "wl.offline_access" };
@@ -177,6 +181,12 @@ namespace BedriddenMonitoring
         int minute;
         int hour;
 
+        bool startcheckjoint = false;
+        int countframe = 0;
+
+        bool fromgreen = false;
+        bool fromyellow = false;
+
         public event PropertyChangedEventHandler PropertyChanged;
 
         /// <summary>
@@ -187,8 +197,8 @@ namespace BedriddenMonitoring
         /// </summary>
         double shoulderLZ;
         double shoulderRZ;
-        string _apiKey = "zS7dv0wADj5wHUe35VJ03yeJtYdx9USoFq6z3BxXute+ZFy5G+4zMcqz+iLiHGGMrcTetrurlBoPz0iETk9Akw==";
-        Uri uri = new Uri("https://ussouthcentral.services.azureml.net/workspaces/dc8cb960fbeb47a3975ca4e45efc7545/services/452051a4485a41a48a1a0341da61f52f/execute?api-version=2.0&details=true");
+        string _apiKey = "ovEwWzcvblL3Jm+ZOxEfQE5OhA9+om8aOzlCZP/R5hdhMWq4FTleZnulVPl6JNITsR5wAyOTdwX8Od7+FlBYOQ==";
+        Uri uri = new Uri("https://ussouthcentral.services.azureml.net/workspaces/dc8cb960fbeb47a3975ca4e45efc7545/services/c3ed73a3f52243a19f45ecc0318c4815/execute?api-version=2.0&details=true");
 
         //Status of Kinect
         public string StatusText
@@ -297,7 +307,7 @@ namespace BedriddenMonitoring
             AccountGrid.Visibility = Visibility.Collapsed;
             SettingGrid.Visibility = Visibility.Collapsed;
             InfoGrid.Visibility = Visibility.Collapsed;
-
+            LoadingGrid.Visibility = Visibility.Collapsed;
             ///Initialize all component that use in this program
             /// * CreateFolderOutput - create KinectOutput folder and OutputLog on client device
             /// * SignIn - handle all component that use for signin to onedrive
@@ -314,14 +324,17 @@ namespace BedriddenMonitoring
 
         private async void ChangeState(object sender, object e)
         {
-            Task SaveFile = SaveWriteableBitmapToFile(StatusType.orange);
-            ShowOutputLog(StatusType.orange);
-            if (IsSend && (CurrentPosture != StatusType.red)) await CreateNoti(StatusType.orange);
-            CurrentPosture = StatusType.orange;
-
+            
             try
             {
-                await SaveFile;
+                if (IsSend && (CurrentPosture != StatusType.red))
+                {
+                    await SaveWriteableBitmapToFile(StatusType.orange);
+                    ShowOutputLog(StatusType.orange);
+                    await CreateNoti(StatusType.orange);
+
+                }
+
             }
             catch(Exception ex)
             {
@@ -365,10 +378,10 @@ namespace BedriddenMonitoring
                 MultiSourceFrameReader sender,
                 MultiSourceFrameArrivedEventArgs e)
         {
-            if (IsFirstTime)
+            if (IsFirstTime&&IsPeople)
             {
-                IsFirstTime = false;
                 MainTimer.Start();
+                IsFirstTime = false;
             }
             MultiSourceFrame multiSourceFrame = e.FrameReference.AcquireFrame();
 
@@ -443,8 +456,66 @@ namespace BedriddenMonitoring
                 this.bodiesManager.UpdateBodiesAndEdges(bodies);
                 //check found people in display
                 CheckPeople(bodies);
+
+                if (bodyGetDepth != null)
+                {
+                    if (startcheckjoint)
+                    {
+                        
+                        if (countframe < 30)
+                        {
+                            double LZ, RZ;
+
+                            Joint shoulderLJoint = bodyGetDepth.Joints[JointType.ShoulderLeft];
+                            LZ = shoulderLJoint.Position.Z;
+                            Joint shoulderRJoint = bodyGetDepth.Joints[JointType.ShoulderRight];
+                            RZ = shoulderRJoint.Position.Z;
+
+                            TrackingState shoulderLState = shoulderLJoint.TrackingState;
+                            TrackingState shoulderRState = shoulderRJoint.TrackingState;
+
+                            if (shoulderLState == TrackingState.Tracked && shoulderRState == TrackingState.Tracked)
+                            {
+                                //green
+                                shoulderLZ = LZ;
+                                shoulderRZ = RZ;
+                                countframe = 30;
+                                fromgreen = true;
+                            }
+                            else
+                            {
+                                //yellow
+                                if (countframe == 0)//First joint data
+                                {
+                                    shoulderLZ = LZ;
+                                    shoulderRZ = RZ;
+                                }
+
+                                double diffOld = Math.Abs(shoulderRZ - shoulderLZ);
+                                double diffNew = Math.Abs(LZ - RZ);
+
+                                if (diffNew > diffOld)
+                                {
+                                    shoulderLZ = LZ;
+                                    shoulderRZ = RZ;
+                                }
+                                fromyellow = true;
+                            }
+
+                            countframe += 1;
+                        }
+                        else
+                        {
+                            startcheckjoint = false;
+                            countframe = 0;
+                        }
+                        
+                    }
+
+                }
+
             }
-            
+
 
         }
 
@@ -461,9 +532,9 @@ namespace BedriddenMonitoring
             }
             catch (Exception ex)
             {
-                string ErrorMessage = ex.Message + "  ::  " + ex.Data;
-                var dialog = new MessageDialog(ErrorMessage);
-                await dialog.ShowAsync();
+                //string ErrorMessage = ex.Message + "  ::  " + ex.Data;
+                //var dialog = new MessageDialog(ErrorMessage);
+                //await dialog.ShowAsync();
             }
             finally
             {
@@ -479,7 +550,7 @@ namespace BedriddenMonitoring
                                   .Request()
                                   .CreateAsync(folderToCreate);
                     }
-
+                    GetUserData(MyAuthProvider.CurrentAccountSession.AccessToken);
                     // open the sensor
                     this.kinectSensor.Open();
                     Task GetUserTask = Get_UserData();
@@ -516,8 +587,8 @@ namespace BedriddenMonitoring
                     new CredentialVault(Client_ID)
                 );
 
-                await MyAuthProvider.RestoreMostRecentFromCacheOrAuthenticateUserAsync();
-                //await MyAuthProvider.AuthenticateUserAsync(username);
+                //await MyAuthProvider.RestoreMostRecentFromCacheOrAuthenticateUserAsync();
+                await MyAuthProvider.AuthenticateUserAsync();
                 
                 oneDriveClient = new OneDriveClient("https://api.onedrive.com/v1.0", MyAuthProvider);
                 
@@ -554,7 +625,24 @@ namespace BedriddenMonitoring
 
 
         }
-        
+
+        private async void GetUserData(string token)
+        {
+            HttpClient test = new HttpClient();
+            //var response = await test.GetAsync("https://apis.live.net/v5.0/me?access_token=" + token);
+            //var response = await test.GetAsync("https://graph.microsoft.com/v1.0/me/mail/" + token);
+            var client = new HttpClient();// send data to server
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",token);
+            
+            var response = await client.GetAsync("https://graph.microsoft.com/v1.0/me");
+            var content = response.Content.ReadAsStringAsync();
+            var temp = content.Result;
+            //var temp_j = JsonConvert.SerializeObject(temp); 
+            var UserJson = JObject.Parse(content.Result);
+            
+            //DetailUserTBL.Text =
+        }
+
         private async void CreateFolderOutput()
         {
             Folder_Pic = await KnownFolders.PicturesLibrary.CreateFolderAsync("KinectOutput", CreationCollisionOption.OpenIfExists);
@@ -688,35 +776,37 @@ namespace BedriddenMonitoring
  
         private async void CheckStatus(object sender, object e)
         {
-            
+            startcheckjoint = true;
+            fromgreen = false;
+            fromyellow = false;
             if (!IsPeople)
             {
                 NewPosture = StatusType.red;
+                IsFirstTime = true;
+                MainTimer.Stop();
             }
             else
             {
                 Joint head = bodyGetDepth.Joints[JointType.Head];
                 double headZ = head.Position.Z;
                 string headZstring = headZ + "";
-
-                shoulderLZ = bodyGetDepth.Joints[JointType.ShoulderLeft].Position.Z;
-                shoulderRZ = bodyGetDepth.Joints[JointType.ShoulderRight].Position.Z;
-
+                
                 if (headZ >= 1.7)
                 {
-                    var obj = new MLInit()
-                    {
-                        Inputs = new Parents()
+
+                        var obj = new MLInit()
                         {
-                            input1 = new Children()
+                            Inputs = new Parents()
                             {
-                                ColumnNames = new string[]
+                                input1 = new Children()
+                                {
+                                    ColumnNames = new string[]
                                 {
                                     "LZ",
                                     "RZ",
-                                    "status"
+                                    "Status"
                                 },
-                                Values = new string[,]
+                                    Values = new string[,]
                                 {
                                     {
                                         shoulderLZ.ToString(),
@@ -728,46 +818,46 @@ namespace BedriddenMonitoring
                                         shoulderRZ.ToString(),
                                         ""
                                     }
+                                }
+                                },
+                                input2 = new Children()
+                                {
+                                    ColumnNames = new string[]
+                                {
+                                    "LZ",
+                                    "RZ",
+                                    "Status"
+                                },
+                                    Values = new string[,]
+                                {
+                                    {
+                                        shoulderLZ.ToString(),
+                                        shoulderRZ.ToString(),
+                                        ""
+                                    },
+                                    {
+                                        shoulderLZ.ToString(),
+                                        shoulderRZ.ToString(),
+                                        ""
+                                    }
+                                }
                                 }
                             },
-                            input2 = new Children()
-                            {
-                                ColumnNames = new string[]
-                                {
-                                    "LZ",
-                                    "RZ",
-                                    "status"
-                                },
-                                Values = new string[,]
-                                {
-                                    {
-                                        shoulderLZ.ToString(),
-                                        shoulderRZ.ToString(),
-                                        ""
-                                    },
-                                    {
-                                        shoulderLZ.ToString(),
-                                        shoulderRZ.ToString(),
-                                        ""
-                                    }
-                                }
-                            }
-                        },
-                        GlobalParameters = new Dictionary<string, string>(){ }
+                            GlobalParameters = new Dictionary<string, string>() { }
 
-                    };
-                    string output = JsonConvert.SerializeObject(obj);
-                    StatusType result_type = await requestResult(output);
-                    NewPosture = result_type;
+                        };
+                        string output = JsonConvert.SerializeObject(obj);
+                        StatusType result_type = await requestResult(output);
+                        NewPosture = result_type;
                 }
-
+                 
                 else
                 {
                     NewPosture = StatusType.yellow;
                 }
 
             }
-
+            
             if (CurrentPosture != NewPosture)
             {
                 CurrentPosture = NewPosture;
@@ -776,7 +866,18 @@ namespace BedriddenMonitoring
                 UserTimer.Start();
                 ShowOutputLog(CurrentPosture);
                 await SaveTask;
-                await CreateNoti(CurrentPosture);
+                if (IsDisappearEnable) {
+                    if(CurrentPosture == StatusType.red) await CreateNoti(CurrentPosture);
+                }
+                else if (IsDonotmoveEnable)
+                {
+                    if (CurrentPosture == StatusType.orange) await CreateNoti(CurrentPosture);
+                }
+                else
+                {
+                    await CreateNoti(CurrentPosture);
+                }
+                
             }
         }
 
@@ -800,7 +901,7 @@ namespace BedriddenMonitoring
                     });
                     break;
 
-                case StatusType.yellow:
+                case StatusType.yellow:                   
                     OutputTBL.Inlines.Insert(0, new Run()
                     {
                         Text = "[" + DateTime.Now.ToString() + "]\r\nDetected! \r\n "
@@ -810,32 +911,49 @@ namespace BedriddenMonitoring
                     break;
 
                 case StatusType.lblue:
+                    var temptext1 = "[" + DateTime.Now.ToString() + "]\r\nDetected! \r\n "
+                                    + "Patient Left Flip " + "\r\n";
+                    if (fromyellow)
+                    {
+                        temptext1 = "[" + DateTime.Now.ToString() + "]\r\nFrom Yellow : Detected! \r\n "
+                                    + "Patient Left Flip " + "\r\n";
+                    }
                     OutputTBL.Inlines.Insert(0, new Run()
                     {
-                        Text = "[" + DateTime.Now.ToString() + "]\r\nDetected! \r\n "
-                                    + "Patient Left Flip " + "\r\n",
+                        Text = temptext1,
                         Foreground = new SolidColorBrush(Colors.Blue)
                     });
                     break;
 
                 case StatusType.rblue:
+                    var temptext2 = "[" + DateTime.Now.ToString() + "]\r\nDetected! \r\n "
+                                    + "Patient Right Flip " + "\r\n";
+                    if (fromyellow)
+                    {
+                        temptext2 = "[" + DateTime.Now.ToString() + "]\r\nFrom Yellow : Detected! \r\n "
+                                    + "Patient Right Flip " + "\r\n";
+                    }
                     OutputTBL.Inlines.Insert(0, new Run()
                     {
-                        Text = "[" + DateTime.Now.ToString() + "]\r\nDetected! \r\n "
-                                    + "Patient Right Flip " + "\r\n",
+                        Text = temptext2,
                         Foreground = new SolidColorBrush(Colors.Cyan)
                     });
                     break;
 
                 case StatusType.green:
+                    var temptext3 = "[" + DateTime.Now.ToString() + "]\r\nDetected! \r\n "
+                                    + "Patient lie on bed " + "\r\n";
+                    if (fromyellow)
+                    {
+                        temptext3 = "[" + DateTime.Now.ToString() + "]\r\nFrom Yellow : Detected! \r\n "
+                                    + "Patient lie on bed " + "\r\n";
+                    }
                     OutputTBL.Inlines.Insert(0, new Run()
                     {
-                        Text = "[" + DateTime.Now.ToString() + "]\r\nDetected! \r\n "
-                                    + "Patient lie on bed " + "\r\n",
+                        Text = temptext3,
                         Foreground = new SolidColorBrush(Colors.Green)
                     });
                     break;
-
                 default:
                     OutputTBL.Inlines.Insert(0, new Run()
                     {
@@ -938,7 +1056,7 @@ namespace BedriddenMonitoring
 
         private async Task Upload2_Cloud(string filename, Data2Database data)
         {
-            StorageFile file = await StorageFile.GetFileFromPathAsync(@"C:\Users\kanokporn\Pictures\KinectOutput\" + filename);
+            StorageFile file = await Folder_Pic.GetFileAsync(filename);
             string Path_file = "Kinect_Output/" + filename;
     
             try
@@ -1185,6 +1303,7 @@ namespace BedriddenMonitoring
             {
                 i.IsEnabled = false;
             }
+            StatusCB.IsEnabled = false;
         }
 
         private void PeriodicSendButt_Checked(object sender, RoutedEventArgs e)
@@ -1194,7 +1313,16 @@ namespace BedriddenMonitoring
             {
                 i.IsEnabled = true;
             }
+            StatusCB.IsEnabled = false;
+        }
 
+        private void StatusSendButt_Checked(object sender, RoutedEventArgs e)
+        {
+            StatusCB.IsEnabled = true;
+            foreach (var i in UserStack.Children.OfType<CheckBox>())
+            {
+                i.IsEnabled = true;
+            }
         }
 
         private void SecondCB_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1216,10 +1344,51 @@ namespace BedriddenMonitoring
             hour = (int)((sender as ComboBox).SelectedValue);
             PeriodTime = new TimeSpan(hour, minute, second);
             UserTimer.Interval = PeriodTime;
+        }
+
+        private void StatusCB_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var temp = ((ComboBoxItem)((sender as ComboBox).SelectedValue)).Content.ToString();
+            if(temp == "Disappear")
+            {
+                IsDisappearEnable = true;
+                IsDonotmoveEnable = false;
+            }
+            else if (temp == "Don't move")
+            {
+                IsDisappearEnable = false;
+                IsDonotmoveEnable = true;
+            }
             
         }
-        
 
+        private void StatusCB_IsEnabledChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            var temp_enable = (bool)e.NewValue;
+            if (temp_enable)
+            {
+                var temp = ((ComboBoxItem)StatusCB.SelectedValue);
+                if (temp != null)
+                {
+                    if (temp.Content.ToString() == "Disappear")
+                    {
+                        IsDisappearEnable = true;
+                        IsDonotmoveEnable = false;
+                    }
+                    else if (temp.Content.ToString() == "Don't move")
+                    {
+                        IsDisappearEnable = false;
+                        IsDonotmoveEnable = true;
+                    }
+                }
+               
+            }
+            else
+            {
+                IsDisappearEnable = false;
+                IsDonotmoveEnable = false;
+            }
+        }
     }
    
 }
